@@ -1,141 +1,270 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 from config.logging_config import get_logger
-from config.db import get_db
-from utils import schema
-from utils.models import UserSchema, WorkExperienceSchema, EducationSchema, ProjectSchema
+from config.database import get_db
+from fastapi.security import OAuth2PasswordRequestForm
+import json
+from datetime import datetime
+from schemas.user import User
+from services.nlp import analyze_job_description, compare_and_generate_suggestions, clean_job_description
+from utils.auth import create_access_token, get_current_user, get_password_hash
+from utils.utils import extract_relevant_items
+from utils import crud
+from utils.models import (
+    UserModel, 
+    WorkExperienceModel,
+    EducationModel,
+    ProjectModel,
+    UserResponse,
+    UserCreate,
+    ApplicationAnalysisCreate,
+    ApplicationAnalysisResponse,
+    ApplicationModel
+)
 
 router = APIRouter()
 logger = get_logger(__name__)
 
-@router.post("/users/")
-def create_user(user_data: UserSchema, db: Session = Depends(get_db)):
+################# User Routes #################
+
+@router.post("/users/", response_model=UserResponse)
+def create_user_route(user_data: UserModel, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Create a new user."""
-    existing_user = db.query(schema.User).filter(schema.User.email == user_data.email).first()
+    existing_user = crud.get_user_by_email(db, user_data.email)
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
+    return crud.create_user(db, user_data)
 
-    new_user = schema.User(
-        name=user_data.name,
-        email=user_data.email,
-        phone_number=user_data.phone_number,
-        location=user_data.location,
-        resume=user_data.resume,
-        portfolio_link=user_data.portfolio_link,
-        linkedin_link=user_data.linkedin_link,
-        github_link=user_data.github_link,
-        skills=", ".join(user_data.skills) if user_data.skills else None,
-        languages=", ".join(user_data.languages) if user_data.languages else None,
-        certifications=", ".join(user_data.certifications) if user_data.certifications else None,
-    )
-
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    return {"message": "User created successfully", "user_id": new_user.id}
-
-@router.put("/users/{user_id}/")
-def update_user(user_id: int, user_data: UserSchema, db: Session = Depends(get_db)):
+@router.put("/users/{user_id}/", response_model=UserResponse)
+def update_user_route(user_id: int, user_data: UserModel, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Update user's basic profile details."""
-    user = db.query(schema.User).filter(schema.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    return crud.update_user_profile(db, user_id, user_data)
 
-    user.name = user_data.name
-    user.phone_number = user_data.phone_number
-    user.location = user_data.location
-    user.resume = user_data.resume
-    user.portfolio_link = user_data.portfolio_link
-    user.linkedin_link = user_data.linkedin_link
-    user.github_link = user_data.github_link
-    user.skills = ", ".join(user_data.skills) if user_data.skills else None
-    user.languages = ", ".join(user_data.languages) if user_data.languages else None
-    user.certifications = ", ".join(user_data.certifications) if user_data.certifications else None
-
-    db.commit()
-    return {"message": "User profile updated successfully"}
-
+################# Work Experience Routes #################
 
 @router.post("/users/{user_id}/work_experience/")
-def add_work_experience(user_id: int, work_exp: WorkExperienceSchema, db: Session = Depends(get_db)):
+def add_work_experience_route(user_id: int, work_exp: WorkExperienceModel, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Add work experience to a user profile."""
-    user = db.query(schema.User).filter(schema.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    new_exp = schema.WorkExperience(user_id=user_id, **work_exp.dict())
-    db.add(new_exp)
-    db.commit()
-    db.refresh(new_exp)
-    return {"message": "Work experience added successfully", "work_experience_id": new_exp.id}
-
-
+    return crud.add_work_experience(db, user_id, work_exp)
 
 @router.put("/users/{user_id}/work_experience/{exp_id}/")
-def update_work_experience(user_id: int, exp_id: int, work_exp: WorkExperienceSchema, db: Session = Depends(get_db)):
+def update_work_experience_route(
+    user_id: int, 
+    exp_id: int, 
+    work_exp: WorkExperienceModel, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """Update work experience entry."""
-    exp = db.query(schema.WorkExperience).filter(schema.WorkExperience.id == exp_id, schema.WorkExperience.user_id == user_id).first()
-    if not exp:
-        raise HTTPException(status_code=404, detail="Work experience not found")
+    return crud.update_work_experience(db, user_id, exp_id, work_exp)
 
-    for key, value in work_exp.dict().items():
-        setattr(exp, key, value)
-
-    db.commit()
-    return {"message": "Work experience updated successfully"}
-
-
+################# Education Routes #################
 
 @router.post("/users/{user_id}/education/")
-def add_education(user_id: int, edu: EducationSchema, db: Session = Depends(get_db)):
+def add_education_route(user_id: int, edu: EducationModel, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Add education to a user profile."""
-    user = db.query(schema.User).filter(schema.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    new_edu = schema.Education(user_id=user_id, **edu.dict())
-    db.add(new_edu)
-    db.commit()
-    db.refresh(new_edu)
-    return {"message": "Education added successfully", "education_id": new_edu.id}
-
+    return crud.add_education(db, user_id, edu)
 
 @router.put("/users/{user_id}/education/{edu_id}/")
-def update_education(user_id: int, edu_id: int, edu: EducationSchema, db: Session = Depends(get_db)):
+def update_education_route(
+    user_id: int, 
+    edu_id: int, 
+    edu: EducationModel, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """Update education entry."""
-    education = db.query(schema.Education).filter(schema.Education.id == edu_id, schema.Education.user_id == user_id).first()
-    if not education:
-        raise HTTPException(status_code=404, detail="Education not found")
+    return crud.update_education(db, user_id, edu_id, edu)
 
-    for key, value in edu.dict().items():
-        setattr(education, key, value)
-
-    db.commit()
-    return {"message": "Education updated successfully"}
-
+################# Project Routes #################
 
 @router.post("/users/{user_id}/projects/")
-def add_project(user_id: int, project: ProjectSchema, db: Session = Depends(get_db)):
+def add_project_route(user_id: int, project: ProjectModel, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Add a project to a user profile."""
-    user = db.query(schema.User).filter(schema.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    new_project = schema.Project(user_id=user_id, **project.dict())
-    db.add(new_project)
-    db.commit()
-    db.refresh(new_project)
-    return {"message": "Project added successfully", "project_id": new_project.id}
+    return crud.add_project(db, user_id, project)
 
 @router.put("/users/{user_id}/projects/{proj_id}/")
-def update_project(user_id: int, proj_id: int, project: ProjectSchema, db: Session = Depends(get_db)):
+def update_project_route(
+    user_id: int, 
+    proj_id: int, 
+    project: ProjectModel, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """Update project entry."""
-    proj = db.query(schema.Project).filter(schema.Project.id == proj_id, schema.Project.user_id == user_id).first()
-    if not proj:
-        raise HTTPException(status_code=404, detail="Project not found")
+    return crud.update_project(db, user_id, proj_id, project)
 
-    for key, value in project.dict().items():
-        setattr(proj, key, value)
+################# Resume Analysis Routes #################
 
-    db.commit()
-    return {"message": "Project updated successfully"}
+@router.post("/applications/create-and-analyze")
+async def create_and_analyze_application(
+    application_data: ApplicationModel,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Create a new application and analyze it:
+    1. Create application record
+    2. Clean and analyze job description
+    3. Compare with resume
+    4. Store analysis
+    5. Return complete analysis
+    """
+    try:
+        # Get application
+        logger.info(f"Creating application for user {current_user.id}")
+        application = crud.create_application(db, ApplicationModel(
+            user_id=current_user.id,
+            job_role=application_data.job_role,
+            company=application_data.company,
+            location=application_data.location,
+            job_description=application_data.job_description,
+            date_applied=datetime.utcnow(),
+            application_status="Draft"
+        ))
+
+        # Step 1: Clean job description
+        logger.info(f"Cleaning job description for application {application.id}")
+        cleaned_description = clean_job_description(application.job_description)
+        
+        # Step 2: Extract keywords
+        logger.info(f"Extracting keywords from cleaned description")
+        keywords_response = analyze_job_description(cleaned_description)
+        try:
+            keywords = json.loads(keywords_response)['technical_keywords']
+        except (json.JSONDecodeError, KeyError):
+            raise HTTPException(
+                status_code=500, 
+                detail="Error parsing keywords from analysis"
+            )
+
+        # Step 3: Get resume data for comparison
+        logger.info(f"Getting resume data for user {current_user.id}")
+        resume_data = {
+            "skills": crud.get_user_skills(db, current_user.id),
+            "experiences": crud.get_work_experience_descriptions(db, current_user.id),
+            "projects": crud.get_project_descriptions(db, current_user.id)
+        }
+
+        # Step 4: Compare and get suggestions
+        logger.info("Comparing keywords with resume data")
+        comparison_response = compare_and_generate_suggestions(
+            {"technical_keywords": keywords}, 
+            resume_data
+        )
+        
+        try:
+            comparison_data = json.loads(comparison_response)
+        except json.JSONDecodeError:
+            raise HTTPException(
+                status_code=500,
+                detail="Error parsing comparison results"
+            )
+
+        # Extract relevant experience and project names from suggestions
+        relevant_items = extract_relevant_items(comparison_data.get('suggestions', {}), resume_data['experiences'], resume_data['projects'])
+
+        # Step 5: Create and store analysis
+        analysis_data = ApplicationAnalysisCreate(
+            job_description=cleaned_description,
+            extracted_keywords=json.dumps(keywords),
+            matched_keywords=json.dumps(comparison_data.get('matched_keywords', [])),
+            missing_keywords=json.dumps(comparison_data.get('missing_keywords', [])),
+            relevant_experiences=json.dumps(relevant_items['experiences']),
+            relevant_projects=json.dumps(relevant_items['projects']),
+            suggestions=json.dumps(comparison_data.get('suggestions', {}))
+        )
+
+        # Store in database
+        logger.info(f"Storing analysis for application {application.id}")
+        stored_analysis = crud.store_application_analysis(
+            db, application.id, analysis_data
+        )
+
+        # Step 6: Return relevant data to frontend
+        return {
+            "matched_keywords": comparison_data.get('matched_keywords', []),
+            "missing_keywords": comparison_data.get('missing_keywords', []),
+            "relevant_experiences": relevant_items['experiences'],
+            "relevant_projects": relevant_items['projects'],
+            "suggestions": comparison_data.get('suggestions', {})
+        }
+
+    except Exception as e:
+        logger.error(f"Error in application analysis: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error analyzing application: {str(e)}"
+        )
+
+# @router.post("/extract_keywords/")
+# def extract_job_keywords(request: str):
+#     """API Endpoint to extract keywords from a job description."""
+#     try:
+#         logger.info(f"Received job description: {request}")
+#         keywords = analyze_job_description(request)
+#         return {"extracted_keywords": keywords}
+#     except Exception as e:
+#         logger.error(f"Error extracting keywords: {e}")
+#         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+# @router.post("/compare_resume/{user_id}/")
+# def compare_resume_with_keywords(user_id: int, keywords: dict, db: Session = Depends(get_db)):
+#     """Compare job keywords with user's resume and generate suggestions."""
+#     try:
+#         resume_data = {
+#             "skills": crud.get_user_skills(db, user_id),
+#             "experiences": crud.get_work_experience_descriptions(db, user_id),
+#             "projects": crud.get_project_descriptions(db, user_id)
+#         }
+
+#         logger.info(f"Processing resume comparison for user {user_id}")
+#         logger.debug(f"Resume data collected: {resume_data}")
+#         logger.debug(f"Keywords to compare: {keywords}")
+
+#         suggestions = compare_and_generate_suggestions(keywords, resume_data)
+#         return {"suggestions": suggestions}
+        
+#     except HTTPException as he:
+#         raise he
+#     except Exception as e:
+#         logger.error(f"Error comparing resume for user {user_id}: {str(e)}")
+#         raise HTTPException(
+#             status_code=500, 
+#             detail="An error occurred while comparing resume"
+#         )
+
+################# Auth Routes #################
+
+@router.post("/token")
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    """Login endpoint to get access token."""
+    user = crud.authenticate_user(db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token = create_access_token(data={"sub": user.email})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@router.post("/register", response_model=UserResponse)
+def register_user(user: UserCreate, db: Session = Depends(get_db)):
+    """Register a new user."""
+    db_user = crud.get_auth_by_email(db, email=user.email)
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    hashed_password = get_password_hash(user.password)
+    return crud.create_user(db, user, hashed_password)
+
+@router.post("/forgot-password")
+async def forgot_password(email: str, db: Session = Depends(get_db)):
+    """Request password reset."""
+    return crud.handle_forgot_password(db, email)
+
+@router.post("/reset-password")
+async def reset_password(token: str, new_password: str, db: Session = Depends(get_db)):
+    """Reset password using token."""
+    return crud.handle_reset_password(db, token, new_password)

@@ -3,5 +3,8 @@ psycopg2-binary
 uvicorn
 python-dotenv
 sqlalchemy
-jinja2
+pydantic
 openai
+nltk
+python-jose[cryptography]
+passlib[bcrypt]

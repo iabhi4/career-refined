@@ -1,3 +1,27 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
 career-refined-backend/venv
 career-refined-backend/.env
+career-refined-backend/logs
+
+# Node modules
 career-refined-frontend/node_modules
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Log files
+*.log
+logs/
