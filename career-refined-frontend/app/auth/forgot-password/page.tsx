@@ -9,12 +9,8 @@ import { Label } from "@/components/ui/label";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-
-const forgotPasswordSchema = z.object({
-  email: z.string().email("Invalid email address"),
-});
-
-type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
+import { forgotPasswordSchema } from "@/schemas/auth";
+import { ForgotPasswordFormValues } from "@/types/auth";
 
 export default function ForgotPasswordPage() {
   const {

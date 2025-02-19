@@ -15,7 +15,8 @@ def create_user(db: Session, user_data: UserCreate, hashed_password: str):
     auth = Auth(
         email=user_data.email,
         name=user_data.name,
-        hashed_password=hashed_password
+        hashed_password=hashed_password,
+        is_onboarded=False
     )
     db.add(auth)
     db.flush()  # Get auth_id
@@ -29,6 +30,21 @@ def create_user(db: Session, user_data: UserCreate, hashed_password: str):
     db.refresh(db_user)
     return db_user
 
+def onboard_user(db: Session, user_data: UserModel, user_id: int):
+    """Onboard a new user"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    for key, value in user_data.dict().items():
+        if isinstance(value, list):
+            setattr(user, key, ", ".join(value) if value else None)
+        else:
+            setattr(user, key, value)
+    
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 def update_user_profile(db: Session, user_id: int, user_data: UserModel):
@@ -134,10 +150,6 @@ def update_project(db: Session, user_id: int, proj_id: int, project: ProjectMode
 def get_user_by_id(db: Session, user_id: int):
     """Get user by ID"""
     return db.query(User).filter(User.id == user_id).first()
-
-def get_user_by_email(db: Session, email: str):
-    """Get user through auth table"""
-    return db.query(User).join(Auth).filter(Auth.email == email).first()
 
 def get_auth_by_email(db: Session, email: str):
     """Get auth entry by email"""

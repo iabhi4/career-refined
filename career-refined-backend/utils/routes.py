@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from config.logging_config import get_logger
 from config.database import get_db
@@ -6,8 +7,9 @@ from fastapi.security import OAuth2PasswordRequestForm
 import json
 from datetime import datetime
 from schemas.user import User
+from schemas.auth import Auth
 from services.nlp import analyze_job_description, compare_and_generate_suggestions, clean_job_description
-from utils.auth import create_access_token, get_current_user, get_password_hash
+from utils.auth import create_access_token, get_current_user, get_password_hash, authenticate_user, set_auth_cookie
 from utils.utils import extract_relevant_items
 from utils import crud
 from utils.models import (
@@ -19,7 +21,8 @@ from utils.models import (
     UserCreate,
     ApplicationAnalysisCreate,
     ApplicationAnalysisResponse,
-    ApplicationModel
+    ApplicationModel,
+    Token
 )
 
 router = APIRouter()
@@ -27,13 +30,13 @@ logger = get_logger(__name__)
 
 ################# User Routes #################
 
-@router.post("/users/", response_model=UserResponse)
-def create_user_route(user_data: UserModel, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+@router.post("/users/{user_id}", response_model=UserResponse)
+def create_user_route(user_data: UserModel, user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Create a new user."""
-    existing_user = crud.get_user_by_email(db, user_data.email)
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    return crud.create_user(db, user_data)
+    existing_user = crud.get_user_by_id(db, user_id)
+    if not existing_user:
+        raise HTTPException(status_code=400, detail="User not found")
+    return crud.onboard_user(db, user_data, user_id)
 
 @router.put("/users/{user_id}/", response_model=UserResponse)
 def update_user_route(user_id: int, user_data: UserModel, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -43,7 +46,7 @@ def update_user_route(user_id: int, user_data: UserModel, db: Session = Depends(
 ################# Work Experience Routes #################
 
 @router.post("/users/{user_id}/work_experience/")
-def add_work_experience_route(user_id: int, work_exp: WorkExperienceModel, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def add_work_experience_route(work_exp: WorkExperienceModel, user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Add work experience to a user profile."""
     return crud.add_work_experience(db, user_id, work_exp)
 
@@ -61,7 +64,7 @@ def update_work_experience_route(
 ################# Education Routes #################
 
 @router.post("/users/{user_id}/education/")
-def add_education_route(user_id: int, edu: EducationModel, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def add_education_route(edu: EducationModel, user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Add education to a user profile."""
     return crud.add_education(db, user_id, edu)
 
@@ -79,7 +82,7 @@ def update_education_route(
 ################# Project Routes #################
 
 @router.post("/users/{user_id}/projects/")
-def add_project_route(user_id: int, project: ProjectModel, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def add_project_route(project: ProjectModel, user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Add a project to a user profile."""
     return crud.add_project(db, user_id, project)
 
@@ -237,27 +240,61 @@ async def create_and_analyze_application(
 
 ################# Auth Routes #################
 
-@router.post("/token")
+@router.post("/token", response_model=Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """Login endpoint to get access token."""
-    user = crud.authenticate_user(db, form_data.username, form_data.password)
-    if not user:
+    logger.info(f"Login attempt for email: {form_data.username}")
+    auth_info = authenticate_user(db, form_data.username, form_data.password)
+    if not auth_info:
+        logger.warning(f"Failed login attempt for email: {form_data.username}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token = create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+    access_token = create_access_token(data={"sub": auth_info.email})
+    logger.info(f"Successful login for user_id: {auth_info.id}, email: {auth_info.email}")
+    
+    response = JSONResponse(content={
+        "user_id": auth_info.id,
+        "is_onboarded": auth_info.is_onboarded
+    })
+    set_auth_cookie(response, access_token)
+    
+    return response
 
-@router.post("/register", response_model=UserResponse)
+@router.post("/register", response_model=Token)
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
     """Register a new user."""
+    logger.info(f"Registration attempt for email: {user.email}")
     db_user = crud.get_auth_by_email(db, email=user.email)
     if db_user:
+        logger.warning(f"Registration failed - email already exists: {user.email}")
         raise HTTPException(status_code=400, detail="Email already registered")
+    
     hashed_password = get_password_hash(user.password)
-    return crud.create_user(db, user, hashed_password)
+    crud.create_user(db, user, hashed_password)
+    logger.info(f"User created successfully with email: {user.email}")
+    
+    auth_info = authenticate_user(db, user.email, user.password)
+    if not auth_info:
+        logger.error(f"Failed to authenticate newly created user: {user.email}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token = create_access_token(data={"sub": auth_info.email})
+    logger.info(f"Registration complete for user_id: {auth_info.id}, email: {auth_info.email}")
+    
+    response = JSONResponse(content={
+        "user_id": auth_info.id,
+        "is_onboarded": auth_info.is_onboarded
+    })
+    set_auth_cookie(response, access_token)
+    
+    return response
 
 @router.post("/forgot-password")
 async def forgot_password(email: str, db: Session = Depends(get_db)):
@@ -268,3 +305,18 @@ async def forgot_password(email: str, db: Session = Depends(get_db)):
 async def reset_password(token: str, new_password: str, db: Session = Depends(get_db)):
     """Reset password using token."""
     return crud.handle_reset_password(db, token, new_password)
+
+@router.post("/logout")
+async def logout():
+    response = JSONResponse(content={"message": "Logged out successfully"})
+    response.delete_cookie("access_token")
+    return response
+
+@router.get("/auth/me")
+async def get_current_user(current_user: Auth = Depends(get_current_user)):
+    """Get current user information."""
+    return {
+        "user_id": current_user.id,
+        "email": current_user.email,
+        "is_onboarded": current_user.is_onboarded
+    }

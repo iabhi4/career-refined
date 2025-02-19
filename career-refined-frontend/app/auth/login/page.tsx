@@ -10,27 +10,57 @@ import { Label } from "@/components/ui/label";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-
-// Example login validation schema
-const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-});
-
-type LoginFormValues = z.infer<typeof loginSchema>;
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/auth";
+import { AuthService } from "@/services/auth";
+import axios from "axios";
+import { loginSchema } from "@/schemas/auth";
+import { LoginFormValues } from "@/types/auth";
 
 export default function LoginPage() {
+  const { login } = useAuth();
+  const router = useRouter();
+  const { toast } = useToast();
+
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
   });
 
-  const onSubmit = (data: LoginFormValues) => {
-    // handle your login logic here
-    console.log("Login form data:", data);
+  const onSubmit = async (data: LoginFormValues) => {
+    try {
+      const response = await AuthService.login({
+        email: data.email,
+        password: data.password,
+      });
+
+      // Update auth context
+      login(response.user_id, response.is_onboarded);
+
+      toast({
+        title: "Login successful!",
+        description: "Welcome back!",
+      });
+
+      // Redirect based on onboarding status
+      if (!response.is_onboarded) {
+        router.push('/onboarding');
+      } else {
+        router.push('/dashboard');
+      }
+    } catch (error) {
+      toast({
+        title: "Login failed",
+        description: axios.isAxiosError(error)
+          ? error.response?.data?.detail || "Invalid credentials"
+          : "An error occurred",
+        variant: "destructive",
+      });
+    }
   };
 
   return (

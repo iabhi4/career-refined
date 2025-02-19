@@ -7,4 +7,3 @@ pydantic
 openai
 nltk
 python-jose[cryptography]
-passlib[bcrypt]

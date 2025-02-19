@@ -10,26 +10,20 @@ import { Label } from "@/components/ui/label";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { API_ENDPOINTS } from "@/config/api";
-import axios from "axios";
-import { API_URL } from "@/config/api";
+import { AuthService } from "@/services/auth";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/auth";
+import { useToast } from "@/hooks/use-toast";
+import { signupSchema } from "@/schemas/auth";
+import { SignupFormValues } from "@/types/auth";
+import { SignupRequest } from "@/types/auth";
 
-// Example sign up validation schema
-const signupSchema = z
-  .object({
-    name: z.string().min(2, "Name must be at least 2 characters"),
-    email: z.string().email("Invalid email address"),
-    password: z.string().min(6, "Password must be at least 6 characters"),
-    confirmPassword: z.string().min(6, "Password must be at least 6 characters"),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"], // show error under confirmPassword field
-  });
-
-type SignupFormValues = z.infer<typeof signupSchema>;
 
 export default function SignupPage() {
+  const router = useRouter();
+  const { login } = useAuth();
+  const { toast } = useToast();
+
   const {
     register,
     handleSubmit,
@@ -38,24 +32,25 @@ export default function SignupPage() {
     resolver: zodResolver(signupSchema),
   });
 
-  const onSubmit = async (data: SignupFormValues) => {
+  const onSubmit = async (data: SignupRequest) => {
     try {
-      const response = await axios.post(`${API_URL}${API_ENDPOINTS.SIGNUP}`, {
+      const response = await AuthService.signup({
+        name: data.name,
         email: data.email,
         password: data.password,
-        name: data.name
       });
-      
-      // If successful, you might want to redirect to login page
-      // or show a success message
-      console.log("Registration successful:", response.data);
-      
+
+      // Update auth context
+      login(response.user_id, false); // New users are not onboarded
+
+      toast({
+        title: "Registration successful!",
+        description: "Please complete your profile.",
+      });
+      console.log("Navigating to onboarding");
+      router.push('/onboarding');
     } catch (error) {
-      // Handle registration errors
-      if (axios.isAxiosError(error)) {
-        console.error("Registration failed:", error.response?.data);
-        // You might want to show an error message to the user
-      }
+      // ... error handling ...
     }
   };
 
