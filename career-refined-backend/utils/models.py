@@ -192,8 +192,6 @@ class UserCreate(BaseModel):
 
 class UserResponse(BaseModel):
     user_id: int
-    email: str
     is_onboarded: bool
-
     class Config:
         from_attributes = True

@@ -39,7 +39,7 @@ def onboard_user(db: Session, user_data: UserModel, user_id: int):
     for key, value in user_data.dict().items():
         if isinstance(value, list):
             setattr(user, key, ", ".join(value) if value else None)
-        else:
+        elif value is not None:
             setattr(user, key, value)
     
     db.commit()
@@ -203,3 +203,13 @@ def create_application(db: Session, application: ApplicationModel) -> Applicatio
             status_code=500,
             detail="Error creating application"
         )
+    
+def update_user_onboarding_status(db: Session, user_id: int):
+    """Update the onboarding status of a user to True"""
+    auth_entry = db.query(Auth).join(User).filter(User.id == user_id).first()
+    if not auth_entry:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    auth_entry.is_onboarded = True
+    db.commit()
+    return auth_entry

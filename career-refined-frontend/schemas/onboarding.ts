@@ -21,9 +21,9 @@ export const workExperienceSchema = z.object({
   start_month: z.enum(validMonths, {
     errorMap: () => ({ message: "Start month is required" }),
   }),
-  start_year: z.number().min(1900, "Invalid start year"),
+  start_year: z.coerce.number().min(1900, "Invalid start year"),
   end_month: z.enum(validMonths).optional(),
-  end_year: z.number().min(1900, "Invalid end year").optional(),
+  end_year: z.coerce.number().min(1900, "Invalid end year").optional(),
   description: z.string().min(1, "Description is required"),
   currently_work_here: z.boolean(),
   technologies_used: z.string().optional(),
@@ -52,11 +52,11 @@ export const educationSchema = z.object({
   start_month: z.enum(validMonths, {
     errorMap: () => ({ message: "Start month is required" }),
   }),
-  start_year: z.number().min(1900, "Invalid start year"),
+  start_year: z.coerce.number().min(1900, "Invalid start year"),
   end_month: z.enum(validMonths, {
     errorMap: () => ({ message: "End month is required" }),
   }),
-  end_year: z.number().min(1900, "Invalid end year"),
+  end_year: z.coerce.number().min(1900, "Invalid end year"),
 })
 .refine(
   (data) => {
@@ -82,9 +82,9 @@ export const projectSchema = z.object({
   start_month: z.enum(validMonths, {
     errorMap: () => ({ message: "Start month is required" }),
   }),
-  start_year: z.number().min(1900, "Invalid start year"),
+  start_year: z.coerce.number().min(1900, "Invalid start year"),
   end_month: z.enum(validMonths).optional(),
-  end_year: z.number().min(1900, "Invalid end year").optional(),
+  end_year: z.coerce.number().min(1900, "Invalid end year").optional(),
   description: z.string().min(1, "Description is required"),
   project_link: z.string().optional(),
   technologies_used: z.string().optional(),

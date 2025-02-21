@@ -36,7 +36,12 @@ def create_user_route(user_data: UserModel, user_id: int, db: Session = Depends(
     existing_user = crud.get_user_by_id(db, user_id)
     if not existing_user:
         raise HTTPException(status_code=400, detail="User not found")
-    return crud.onboard_user(db, user_data, user_id)
+    crud.onboard_user(db, user_data, user_id)
+    auth_entry = crud.update_user_onboarding_status(db, user_id)
+    return {
+        "user_id": auth_entry.id,
+        "is_onboarded": auth_entry.is_onboarded
+    }
 
 @router.put("/users/{user_id}/", response_model=UserResponse)
 def update_user_route(user_id: int, user_data: UserModel, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -99,7 +104,7 @@ def update_project_route(
 
 ################# Resume Analysis Routes #################
 
-@router.post("/applications/create-and-analyze")
+@router.post("/applications/create-and-analyze/")
 async def create_and_analyze_application(
     application_data: ApplicationModel,
     db: Session = Depends(get_db),
@@ -313,7 +318,7 @@ async def logout():
     return response
 
 @router.get("/auth/me")
-async def get_current_user(current_user: Auth = Depends(get_current_user)):
+async def get_authenticated_user(current_user: Auth = Depends(get_current_user)):
     """Get current user information."""
     return {
         "user_id": current_user.id,

@@ -79,6 +79,7 @@ export default function OnboardingPage() {
 
   // Submit handler
   const onSubmit = handleSubmit(async (formData: OnboardingFormValues) => {
+    console.log("Entered onSubmit");
     if (!userId) {
       toast({
         title: "Error",
@@ -88,14 +89,16 @@ export default function OnboardingPage() {
       router.push('/auth/login');
       return;
     }
-
+    console.log("User ID found");
     try {
+      console.log("Submitting onboarding data");
       await OnboardingService.submitOnboardingData(formData, userId);
 
       toast({
         title: "Success!",
         description: "Your profile has been updated successfully.",
       });
+      console.log("Successfully submitted onboarding data");
 
       router.push('/dashboard');
     } catch (error) {

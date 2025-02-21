@@ -15,6 +15,7 @@ interface AuthState {
 interface AuthContextType extends AuthState {
   login: (userId: number, isOnboarded: boolean) => void;
   logout: () => void;
+  updateIsOnboarded: (status: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,6 +28,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isOnboarded: false,
   });
   const [isLoading, setIsLoading] = useState(true);
+
+  const updateIsOnboarded = (status: boolean) => {
+    setAuthState((prev) => ({ ...prev, isOnboarded: status }));
+  };
 
   // Check auth status on initial load
   useEffect(() => {
@@ -87,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ ...authState, login, logout }}>
+    <AuthContext.Provider value={{ ...authState, login, logout, updateIsOnboarded }}>
       {children}
     </AuthContext.Provider>
   );

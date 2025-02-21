@@ -1,12 +1,15 @@
 import axios from 'axios';
 import { API_URL, API_ENDPOINTS } from '@/config/api';
 import { OnboardingFormValues } from '@/types/onboarding';
+import { useAuth } from '@/contexts/auth';
 
 export class OnboardingService {
   static async submitOnboardingData(formData: OnboardingFormValues, user_id: number) {
+    console.log("Submitting onboarding data");
+    const { updateIsOnboarded } = useAuth();
     try {
       // 1. Update basic user information
-
+      console.log("Updating basic user information");
       const userResponse = await axios.post(
         `${API_URL}${API_ENDPOINTS.USERS}/${user_id}`,
         {
@@ -20,8 +23,16 @@ export class OnboardingService {
           skills: formData.skills,
           languages: formData.languages,
           certifications: formData.certifications,
+        },
+        {
+          withCredentials: true,
         }
       );
+      console.log("User response:", userResponse.data);
+      if (userResponse.data.is_onboarded) {
+        updateIsOnboarded(true);
+        document.cookie = `is_onboarded=true; path=/`;
+      }
 
       const workExperiencePromises = formData.work_experiences.map((exp) =>
         axios.post(`${API_URL}${API_ENDPOINTS.USERS}/${user_id}/work_experience`, {
@@ -30,12 +41,15 @@ export class OnboardingService {
           position: exp.position,
           experience_type: exp.experience_type,
           start_month: exp.start_month,
-          start_year: exp.start_year,
+          start_year: parseInt(String(exp.start_year)),
           end_month: exp.end_month,
-          end_year: exp.end_year,
+          end_year: exp.end_year ? parseInt(String(exp.end_year)) : undefined,
           description: exp.description,
           technologies_used: exp.technologies_used,
           currently_work_here: exp.currently_work_here,
+        },
+        {
+          withCredentials: true,
         })
       );
 
@@ -47,9 +61,12 @@ export class OnboardingService {
           degree_type: edu.degree_type,
           gpa: edu.gpa,
           start_month: edu.start_month,
-          start_year: edu.start_year,
+          start_year: parseInt(String(edu.start_year)),
           end_month: edu.end_month,
-          end_year: edu.end_year,
+          end_year: parseInt(String(edu.end_year)),
+        },
+        {
+          withCredentials: true,
         })
       );
 
@@ -62,12 +79,15 @@ export class OnboardingService {
           position: proj.position,
           experience_type: proj.experience_type,
           start_month: proj.start_month,
-          start_year: proj.start_year,
+          start_year: parseInt(String(proj.start_year)),
           end_month: proj.end_month,
-          end_year: proj.end_year,
+          end_year: proj.end_year ? parseInt(String(proj.end_year)) : undefined,
           description: proj.description,
           technologies_used: proj.technologies_used,
           project_link: proj.project_link,
+        },
+        {
+          withCredentials: true,
         })
       );
 
