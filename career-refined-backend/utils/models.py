@@ -13,7 +13,7 @@ class WorkExperienceModel(BaseModel):
     end_month: Optional[str] = None
     end_year: Optional[int] = None
     description: Optional[str] = None
-    currently_work_here: bool
+    currently_work_here: Optional[bool] = False
     technologies_used: Optional[str] = None
     @validator('experience_type')
     def validate_experience_type(cls, v):
@@ -25,7 +25,8 @@ class WorkExperienceModel(BaseModel):
     @validator('start_month')
     def validate_start_month(cls, v):
         valid_months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                       'July', 'August', 'September', 'October', 'November', 'December']
+                       'July', 'August', 'September', 'October', 'November', 'December', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
         if v not in valid_months:
             raise ValueError(f'start_month must be one of {valid_months}')
         return v
@@ -34,7 +35,8 @@ class WorkExperienceModel(BaseModel):
     def validate_end_month(cls, v):
         if v is not None:
             valid_months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                          'July', 'August', 'September', 'October', 'November', 'December']
+                       'July', 'August', 'September', 'October', 'November', 'December', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
             if v not in valid_months:
                 raise ValueError(f'end_month must be one of {valid_months}')
         return v
@@ -67,7 +69,8 @@ class EducationModel(BaseModel):
     @validator('start_month')
     def validate_start_month(cls, v):
         valid_months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                       'July', 'August', 'September', 'October', 'November', 'December']
+                       'July', 'August', 'September', 'October', 'November', 'December', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
         if v not in valid_months:
             raise ValueError(f'start_month must be one of {valid_months}')
         return v
@@ -76,7 +79,8 @@ class EducationModel(BaseModel):
     def validate_end_month(cls, v):
         if v is not None:
             valid_months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                          'July', 'August', 'September', 'October', 'November', 'December']
+                       'July', 'August', 'September', 'October', 'November', 'December', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
             if v not in valid_months:
                 raise ValueError(f'end_month must be one of {valid_months}')
         return v
@@ -112,7 +116,8 @@ class ProjectModel(BaseModel):
     @validator('start_month')
     def validate_start_month(cls, v):
         valid_months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                       'July', 'August', 'September', 'October', 'November', 'December']
+                       'July', 'August', 'September', 'October', 'November', 'December', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
         if v not in valid_months:
             raise ValueError(f'start_month must be one of {valid_months}')
         return v
@@ -121,7 +126,8 @@ class ProjectModel(BaseModel):
     def validate_end_month(cls, v):
         if v is not None:
             valid_months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                          'July', 'August', 'September', 'October', 'November', 'December']
+                       'July', 'August', 'September', 'October', 'November', 'December', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
             if v not in valid_months:
                 raise ValueError(f'end_month must be one of {valid_months}')
         return v
@@ -152,6 +158,8 @@ class JobDescriptionRequest(BaseModel):
     job_description: str
 
 class ApplicationAnalysisCreate(BaseModel):
+    user_id: int
+    application_id: int
     job_description: str
     extracted_keywords: str
     matched_keywords: str
@@ -172,8 +180,8 @@ class ApplicationModel(BaseModel):
     id: Optional[int] = None
     user_id: int
     job_role: str
-    company: Optional[str] = None
-    location: Optional[str] = None
+    company: str
+    location: str
     job_description: str
     date_applied: Optional[datetime] = None
     application_status: Optional[str] = "Draft"
@@ -195,3 +203,74 @@ class UserResponse(BaseModel):
     is_onboarded: bool
     class Config:
         from_attributes = True
+
+class EditorModel(BaseModel):
+    editor_content: str
+
+
+class SkillModel(BaseModel):
+    skills: str
+
+class LanguageModel(BaseModel):
+    languages: str
+
+class CertificationModel(BaseModel):
+    certifications: str
+
+class PersonalInfoModel(BaseModel):
+    name: str
+    email: str
+    phone_number: str
+
+
+class PersonalDetailsUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone_number: Optional[str] = None
+    location: Optional[str] = None
+    portfolio_link: Optional[str] = None
+    linkedin_link: Optional[str] = None
+    github_link: Optional[str] = None
+
+class ResumeDataModel(BaseModel):
+    class Education(BaseModel):
+        institution: str
+        degree: str
+        startYear: str
+        endYear: str
+
+    class Experience(BaseModel):
+        company: str
+        role: str
+        startDate: str
+        endDate: Optional[str] = None
+        location: Optional[str] = None
+        responsibilities: List[str]
+
+    class PersonalDetails(BaseModel):
+        name: str
+        phone: str
+        email: str
+        github: str
+        linkedin: str
+
+    class Project(BaseModel):
+        name: str
+        technologies: str
+        startDate: str
+        endDate: Optional[str] = None
+        description: List[str]
+
+    class Skills(BaseModel):
+        languages: Optional[str] = None
+        frameworks: Optional[str] = None
+        developerTools: Optional[str] = None
+        cloudTechnologies: Optional[str] = None
+        dbsApplications: Optional[str] = None
+        otherSkillsAndTools: Optional[str] = None
+
+    education: List[Education]
+    experience: List[Experience]
+    personalDetails: PersonalDetails
+    projects: List[Project]
+    skills: Skills

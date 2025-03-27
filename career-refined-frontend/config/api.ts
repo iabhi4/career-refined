@@ -5,10 +5,19 @@ export const API_ENDPOINTS = {
     FORGOT_PASSWORD: '/forgot-password',
     RESET_PASSWORD: '/reset-password',
     USERS: '/users',
+    PROFILE: '/profile-data',
     WORK_EXPERIENCE: '/work_experience',
     EDUCATION: '/education',
     PROJECTS: '/projects',
+    SKILLS: '/skills',
+    LANGUAGES: '/languages',
+    CERTIFICATIONS: '/certifications',
     LOGOUT: '/logout',
+    APPLICATIONS: '/applications/create-and-analyze',
+    PROJECTS_AND_EXPERIENCES: '/projects-and-experiences',
+    EDITOR_DATA: '/editor-data',
+    EDITOR_DATA_FOR_FIRST_TIME: '/editor-data-new',
+    PDF_STATUS: '/pdf-status',
 }
 
 export const axiosConfig = {

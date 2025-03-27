@@ -27,3 +27,4 @@ class User(Base):
     applications = relationship("Application", back_populates="user", cascade="all, delete-orphan")
     auth_info = relationship("Auth", back_populates="user")
     application_analysis = relationship("ApplicationAnalysis", back_populates="user")
+    cached_resumes = relationship("CachedResume", back_populates="user", cascade="all, delete-orphan")

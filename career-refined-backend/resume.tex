@@ -1,0 +1,207 @@
+%-------------------------
+% Resume in Latex
+% Author : Jake Gutierrez
+% Based off of: https://github.com/sb2nov/resume
+% License : MIT
+%------------------------
+
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\input{glyphtounicode}
+
+
+%----------FONT OPTIONS----------
+% sans-serif
+% \usepackage[sfdefault]{FiraSans}
+% \usepackage[sfdefault]{roboto}
+% \usepackage[sfdefault]{noto-sans}
+% \usepackage[default]{sourcesanspro}
+
+% serif
+% \usepackage{CormorantGaramond}
+% \usepackage{charter}
+
+
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.0in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+
+% Ensure that generate pdf is machine readable/ATS parsable
+\pdfgentounicode=1
+
+%-------------------------
+% Custom commands
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubSubheading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \textit{\small#1} & \textit{\small #2} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \small#1 & #2 \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
+%-------------------------------------------
+%%%%%%  RESUME STARTS HERE  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+\begin{center}
+    \textbf{\Huge \scshape Abhinav Singh} \\ \vspace{1pt}
+    \small 3102279021 $|$ \href{ mailto:x@x.com }{\underline{ abhinav.csgrad@gmail.com }} $|$ 
+    \href{ https://linkedin.com/in/iabhi }{\underline{ https://linkedin.com/in/iabhi }} $|$
+    \href{ https://github.com/iabhi4 }{\underline{ https://github.com/iabhi4 }}
+\end{center}
+
+%-----------EXPERIENCE-----------
+\section{Experience}
+  \resumeSubHeadingListStart
+    
+    \resumeSubheading
+      { AlertEnterprise }{ August 2021 -- April 2023 }
+      { Software Engineer 1 }{ Remotely }
+      \resumeItemListStart
+        
+        \resumeItem{ Developed high-performance RESTful APIs in Spring Boot to streamline operations across 50+ airports. }
+        
+        \resumeItem{ Engineered a Kubernetes-based microservices platform with distributed authentication, leveraging Istio for secure inter-service communication and fine-grained RBAC to drive scalable deployments and reduce vulnerabilities. }
+        
+        \resumeItem{ Optimized HQL queries and refactored Java data access layers by enhancing indexing and eliminating redundant joins, boosting performance by 21\% in 3 months. }
+        
+        \resumeItem{ Built a policy enforcement engine using rule-based decision logic with asynchronous event processing and caching, cutting workflow time by 15\%. }
+        
+        \resumeItem{ Enhanced Angular product screens by implementing efficient code splitting and lazy loading, reducing API calls and slashing page load times by 20\% to deliver a faster, more responsive UI. }
+        
+        \resumeItem{ Collaborated in an agile environment using JIRA to streamline documentation and QA. }
+        
+      \resumeItemListEnd
+    
+  \resumeSubHeadingListEnd
+
+%-----------PROJECTS-----------
+\section{Projects}
+  \resumeSubHeadingListStart
+    
+    \resumeProjectHeading
+      { \textbf{ EnrollmentAPI } $|$ \emph{ Python, FastAPI, Krakend, DynamoDB }}{ August 2024 -- December 2024 }
+      \resumeItemListStart
+        
+        \resumeItem{ Engineered a scalable, serverless backend for college enrollment using FastAPI on AWS Lambda with API Gateway; }
+        
+        \resumeItem{ integrated asynchronous processing and CI/CD testing to reduce API latency by 30\%. }
+        
+        \resumeItem{ Designed a secure role-based authentication system with JWT via Krakend; applied dependency injection and repository patterns for DynamoDB Streams and LiteFS abstraction. }
+        
+        \resumeItem{ Optimized waitlist management using Redis Sorted Sets and RabbitMQ; integrated AWS SES and webhooks to reliably notify 1000+ students under heavy concurrency. }
+        
+      \resumeItemListEnd
+    
+    \resumeProjectHeading
+      { \textbf{ CareerRefined } $|$ \emph{ FastAPI, React, AWS, NLP }}{ May 2024 -- July 2028 }
+      \resumeItemListStart
+        
+        \resumeItem{ Leveraged HuggingFace’s BERT with TensorFlow to build an AI resume engine that accurately extracts candidate skills, validated with PyTest to increase job matching. }
+        
+        \resumeItem{ Performed integration of a PostgreSQL-backed job tracking dashboard on AWS RDS; containerized with Docker and deployed via Elastic Beanstalk to ensure robust data synchronization. }
+        
+        \resumeItem{ Deployed a responsive resume scoring UI with React, Redux, Tailwind, and Axios that processes real-time data to compute live scores; validated with Jest and Enzyme, boosting matching efficiency by 22\% }
+        
+      \resumeItemListEnd
+    
+    \resumeProjectHeading
+      { \textbf{ Reliable File Transfer System } $|$ \emph{  }}{ November 2023 -- December 2027 }
+      \resumeItemListStart
+        
+        \resumeItem{ Crafted a UDP file transfer system for local networks by designing a custom sliding-window protocol with packet }
+        
+        \resumeItem{ sequencing, CRC detection, and ACK handling via POSIX sockets, ensuring reliable delivery. }
+        
+        \resumeItem{ Implemented adaptive retransmission and congestion control using POSIX threads, monitoring latency and packet loss to optimize buffer management and error recovery for high-throughput transfers. }
+        
+      \resumeItemListEnd
+    
+  \resumeSubHeadingListEnd
+
+%-----------PROGRAMMING SKILLS-----------
+\section{Technical Skills}
+  \begin{itemize}[leftmargin=0.15in, label={}]
+      \small{\item{
+      \textbf{Languages}{: java, python } \\
+      \textbf{Frameworks}{: None } \\
+      \textbf{Developer Tools}{: None } \\
+      \textbf{Cloud Technologies}{: None } \\
+      \textbf{DBS Applications}{: None } \\
+      \textbf{Other Skills \& Tools}{: None }
+      }}
+  \end{itemize}
+
+%-----------EDUCATION-----------
+\section{Education}
+  \resumeSubHeadingListStart
+    
+    \resumeSubheading
+      { California State University, Fullerton }{ August 2023 -- May 2025 }
+      { Master's }{  }
+    
+    \resumeSubheading
+      { CU }{ July 2018 -- July 2022 }
+      { Bachelor's }{  }
+    
+  \resumeSubHeadingListEnd
+\end{document}

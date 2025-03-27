@@ -7,3 +7,4 @@ pydantic
 openai
 nltk
 python-jose[cryptography]
+jinja2

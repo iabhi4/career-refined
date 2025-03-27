@@ -1,0 +1,2 @@
+FROM blang/latex:ctanfull
+WORKDIR /data

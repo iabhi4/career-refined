@@ -44,6 +44,7 @@ export default function LoginPage() {
       toast({
         title: "Login successful!",
         description: "Welcome back!",
+        duration: 3000,
       });
 
       // Redirect based on onboarding status
@@ -65,7 +66,7 @@ export default function LoginPage() {
 
   return (
     <AuthCard title="Career Refined" description="Welcome back">
-      <p className="mb-4 text-center text-sm text-gray-500">
+      <p className="mb-4 text-center text-sm text-muted-foreground">
         Sign in to your account to continue
       </p>
 
@@ -73,7 +74,7 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Email */}
         <div>
-          <Label htmlFor="email" className="text-sm font-medium text-gray-700">
+          <Label htmlFor="email" className="text-sm font-medium text-card-foreground">
             Email address
           </Label>
           <Input
@@ -81,15 +82,16 @@ export default function LoginPage() {
             type="email"
             placeholder="name@example.com"
             {...register("email")}
+            className="bg-background"
           />
           {errors.email && (
-            <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+            <p className="mt-1 text-sm text-destructive-foreground">{errors.email.message}</p>
           )}
         </div>
 
         {/* Password */}
         <div>
-          <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+          <Label htmlFor="password" className="text-sm font-medium text-card-foreground">
             Password
           </Label>
           <Input
@@ -97,28 +99,35 @@ export default function LoginPage() {
             type="password"
             placeholder="Enter your password"
             {...register("password")}
+            className="bg-background"
           />
           {errors.password && (
-            <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+            <p className="mt-1 text-sm text-destructive-foreground">{errors.password.message}</p>
           )}
         </div>
 
         <Button
           type="submit"
-          className="w-full bg-indigo-600 text-white hover:bg-indigo-700"
+          className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
         >
           Sign in
         </Button>
       </form>
 
       {/* Links at the bottom */}
-      <div className="mt-4 flex flex-col items-center justify-center gap-2 text-sm text-gray-600 sm:flex-row sm:justify-between">
-        <Link href="/auth/forgot-password" className="font-medium text-indigo-600 hover:underline">
+      <div className="mt-4 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground sm:flex-row sm:justify-between">
+        <Link
+          href="/auth/forgot-password"
+          className="font-medium text-primary hover:underline"
+        >
           Forgot your password?
         </Link>
         <p>
           Don&apos;t have an account?{" "}
-          <Link href="/auth/signup" className="font-medium text-indigo-600 hover:underline">
+          <Link
+            href="/auth/signup"
+            className="font-medium text-primary hover:underline"
+          >
             Sign up
           </Link>
         </p>

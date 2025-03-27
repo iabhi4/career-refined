@@ -11,6 +11,9 @@ from config.settings import settings
 from fastapi.responses import JSONResponse
 from schemas.auth import Auth
 from utils.models import TokenData
+from config.logging_config import get_logger
+
+logger = get_logger(__name__)
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -64,13 +67,20 @@ async def get_current_user(
 
 def authenticate_user(db: Session, email: str, password: str):
     """Authenticate user using the new Auth table"""
+    logger.info(f"Attempting to authenticate user with email: {email}")
     auth_info = get_auth_by_email(db, email)
-    if not auth_info or not verify_password(password, auth_info.hashed_password):
+    if not auth_info:
+        logger.warning(f"Authentication failed: User with email {email} not found")
         return False
+    if not verify_password(password, auth_info.hashed_password):
+        logger.warning(f"Authentication failed: Incorrect password for email {email}")
+        return False
+    logger.info(f"User with email {email} authenticated successfully")
     return auth_info
 
-def set_auth_cookie(response: JSONResponse, token: str) -> None:
+def set_auth_cookie(response: JSONResponse, token: str, is_onboarded: bool) -> None:
     """Helper function to set authentication cookie consistently."""
+    # Set the access_token cookie (usually HTTP-only)
     response.set_cookie(
         key="access_token",
         value=f"Bearer {token}",
@@ -78,4 +88,14 @@ def set_auth_cookie(response: JSONResponse, token: str) -> None:
         secure=True,  # for HTTPS
         samesite='lax',
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # convert minutes to seconds
+    )
+
+    # Set the is_onboarded cookie (usually NOT HTTP-only so the client can read it)
+    response.set_cookie(
+        key="is_onboarded",
+        value="true" if is_onboarded else "false",
+        httponly=False,   # allow reading on client side
+        secure=True,      # for HTTPS
+        samesite='lax',
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )

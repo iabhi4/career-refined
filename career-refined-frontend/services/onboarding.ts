@@ -1,12 +1,10 @@
 import axios from 'axios';
 import { API_URL, API_ENDPOINTS } from '@/config/api';
 import { OnboardingFormValues } from '@/types/onboarding';
-import { useAuth } from '@/contexts/auth';
 
 export class OnboardingService {
   static async submitOnboardingData(formData: OnboardingFormValues, user_id: number) {
     console.log("Submitting onboarding data");
-    const { updateIsOnboarded } = useAuth();
     try {
       // 1. Update basic user information
       console.log("Updating basic user information");
@@ -30,7 +28,6 @@ export class OnboardingService {
       );
       console.log("User response:", userResponse.data);
       if (userResponse.data.is_onboarded) {
-        updateIsOnboarded(true);
         document.cookie = `is_onboarded=true; path=/`;
       }
 

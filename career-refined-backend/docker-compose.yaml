@@ -1,0 +1,21 @@
+version: "3.8"
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+  fastapi:
+    build: .
+    command: uvicorn main:app --host 0.0.0.0 --port 8081
+    volumes:
+      - .:/app
+    depends_on:
+      - rabbitmq
+  celery_worker:
+    build: .
+    command: celery -A celery_app worker --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - rabbitmq

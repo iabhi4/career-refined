@@ -15,7 +15,7 @@ interface AuthState {
 interface AuthContextType extends AuthState {
   login: (userId: number, isOnboarded: boolean) => void;
   logout: () => void;
-  updateIsOnboarded: (status: boolean) => void;
+  updateIsOnboarded: (isOnboarded: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,8 +29,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
   const [isLoading, setIsLoading] = useState(true);
 
-  const updateIsOnboarded = (status: boolean) => {
-    setAuthState((prev) => ({ ...prev, isOnboarded: status }));
+  const updateIsOnboarded = (isOnboarded: boolean) => {
+    setAuthState((prev) => ({ ...prev, isOnboarded }));
   };
 
   // Check auth status on initial load

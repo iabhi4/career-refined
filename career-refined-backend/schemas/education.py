@@ -16,5 +16,6 @@ class Education(Base):
     start_year = Column(Integer, nullable=False)
     end_month = Column(String, nullable=True)
     end_year = Column(Integer, nullable=True)
+    #location = Column(String, nullable=True)
 
     user = relationship("User", back_populates="education")

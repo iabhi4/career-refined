@@ -15,9 +15,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth";
 import { useToast } from "@/hooks/use-toast";
 import { signupSchema } from "@/schemas/auth";
-import { SignupFormValues } from "@/types/auth";
-import { SignupRequest } from "@/types/auth";
-
+import { SignupFormValues, SignupRequest } from "@/types/auth";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -46,9 +44,10 @@ export default function SignupPage() {
       toast({
         title: "Registration successful!",
         description: "Please complete your profile.",
+        duration: 3000,
       });
       console.log("Navigating to onboarding");
-      router.push('/onboarding');
+      router.push("/onboarding");
     } catch (error) {
       // ... error handling ...
     }
@@ -56,14 +55,14 @@ export default function SignupPage() {
 
   return (
     <AuthCard title="Create an account" description="Welcome to Career Refined">
-      <p className="mb-4 text-center text-sm text-gray-500">
+      <p className="mb-4 text-center text-sm text-muted-foreground">
         Sign up with your details
       </p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Name */}
         <div>
-          <Label htmlFor="name" className="text-sm font-medium text-gray-700">
+          <Label htmlFor="name" className="text-sm font-medium text-card-foreground">
             Full Name
           </Label>
           <Input
@@ -71,15 +70,18 @@ export default function SignupPage() {
             type="text"
             placeholder="John Doe"
             {...register("name")}
+            className="bg-background"
           />
           {errors.name && (
-            <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
+            <p className="mt-1 text-sm text-destructive-foreground">
+              {errors.name.message}
+            </p>
           )}
         </div>
 
         {/* Email */}
         <div>
-          <Label htmlFor="email" className="text-sm font-medium text-gray-700">
+          <Label htmlFor="email" className="text-sm font-medium text-card-foreground">
             Email address
           </Label>
           <Input
@@ -87,15 +89,18 @@ export default function SignupPage() {
             type="email"
             placeholder="name@example.com"
             {...register("email")}
+            className="bg-background"
           />
           {errors.email && (
-            <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+            <p className="mt-1 text-sm text-destructive-foreground">
+              {errors.email.message}
+            </p>
           )}
         </div>
 
         {/* Password */}
         <div>
-          <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+          <Label htmlFor="password" className="text-sm font-medium text-card-foreground">
             Password
           </Label>
           <Input
@@ -103,15 +108,18 @@ export default function SignupPage() {
             type="password"
             placeholder="Enter your password"
             {...register("password")}
+            className="bg-background"
           />
           {errors.password && (
-            <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+            <p className="mt-1 text-sm text-destructive-foreground">
+              {errors.password.message}
+            </p>
           )}
         </div>
 
         {/* Confirm Password */}
         <div>
-          <Label htmlFor="confirmPassword" className="text-sm font-medium text-gray-700">
+          <Label htmlFor="confirmPassword" className="text-sm font-medium text-card-foreground">
             Confirm Password
           </Label>
           <Input
@@ -119,9 +127,10 @@ export default function SignupPage() {
             type="password"
             placeholder="Re-enter your password"
             {...register("confirmPassword")}
+            className="bg-background"
           />
           {errors.confirmPassword && (
-            <p className="mt-1 text-sm text-red-600">
+            <p className="mt-1 text-sm text-destructive-foreground">
               {errors.confirmPassword.message}
             </p>
           )}
@@ -129,15 +138,15 @@ export default function SignupPage() {
 
         <Button
           type="submit"
-          className="w-full bg-indigo-600 text-white hover:bg-indigo-700"
+          className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
         >
           Sign up
         </Button>
       </form>
 
-      <div className="mt-4 text-center text-sm text-gray-600">
+      <div className="mt-4 text-center text-sm text-muted-foreground">
         Already have an account?{" "}
-        <Link href="/auth/login" className="font-medium text-indigo-600 hover:underline">
+        <Link href="/auth/login" className="font-medium text-primary hover:underline">
           Login
         </Link>
       </div>

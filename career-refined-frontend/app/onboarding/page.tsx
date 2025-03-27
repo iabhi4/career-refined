@@ -97,6 +97,7 @@ export default function OnboardingPage() {
       toast({
         title: "Success!",
         description: "Your profile has been updated successfully.",
+        duration: 3000,
       });
       console.log("Successfully submitted onboarding data");
 

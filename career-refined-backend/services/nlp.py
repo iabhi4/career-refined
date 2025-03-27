@@ -2,6 +2,7 @@ import os
 import re
 import nltk
 from nltk.corpus import stopwords
+from nltk.data import find
 from openai import OpenAI
 from dotenv import load_dotenv
 from config.logging_config import get_logger
@@ -11,11 +12,31 @@ load_dotenv()
 logger = get_logger(__name__)
 
 nltk.download("stopwords")
+nltk.download("punkt_tab")
 stop_words = set(stopwords.words("english"))
+
+# nltk_data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'nltk_data')
+# nltk.data.path.append(nltk_data_dir)
+# try:
+#     find("corpora/stopwords.zip")
+# except LookupError:
+#     print("Stopwords not found. Please run the download script.")
+# try:
+#     find("tokenizers/punkt")
+# except LookupError:
+#     print("Punkt tokenizer not found. Please run the download script.")
+# stop_words = set(stopwords.words("english"))
 
 client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
 )
+
+def clean_response(response: str):
+    match = re.search(r"```json\s*(\{.*\})\s*```", response, re.DOTALL)
+    if match:
+        response = match.group(1)
+    return response
+
 
 def clean_job_description(job_description: str):
     """Removes non-relevant job description sections while keeping CS-relevant parts."""
@@ -63,6 +84,7 @@ Return the extracted technical keywords as a flat JSON list in the following for
         )
         logger.info("Received response from OpenAI.")
         content = response.choices[0].message.content
+        content = clean_response(content)
         return content
     except Exception as e:
         logger.error(f"Error during analysis: {e}")
@@ -110,6 +132,7 @@ resume_data - {json.dumps(resume_data, indent=4)}
         )
         logger.info("Received response from OpenAI.")
         content = response.choices[0].message.content
+        content = clean_response(content)
         return content
     except Exception as e:
         logger.error(f"Error during analysis: {e}")
