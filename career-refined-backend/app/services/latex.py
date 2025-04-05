@@ -1,9 +1,10 @@
+import os, subprocess
 from jinja2 import Environment
-from config.logging_config import get_logger
-import os
-import subprocess
-from utils.utils import transform_data_for_latex
-from services.celery import celery_app
+import boto3
+from botocore.exceptions import NoCredentialsError, ClientError
+from app.core.logging_config import get_logger
+from app.utils.helpers import transform_data_for_latex
+from app.celery_app import celery_app
 
 logger = get_logger(__name__)
 
@@ -23,6 +24,13 @@ def escape_latex_characters(text):
     for char, escape in special_chars.items():
         text = text.replace(char, escape)
     return text
+
+def normalize_windows_path(win_path: str) -> str:
+    # Convert backslashes to forward slashes and remove colon.
+    drive, path = os.path.splitdrive(win_path)
+    drive = drive.lower().replace(":", "")
+    normalized = f"/{drive}{path.replace(os.sep, '/')}"
+    return normalized
 
 def generate_resume_latex(resume_data):
     resume_data = resume_data.dict()
@@ -227,6 +235,7 @@ def compile_latex(latex_filepath: str) -> str:
     raise Exception(f"File not found: {latex_filepath}")
 
   directory = os.path.dirname(latex_filepath)
+  normalized_directory = normalize_windows_path(directory)
   filename = os.path.basename(latex_filepath)
   logger.info(f"Using directory: {directory}, filename: {filename}")
 
@@ -237,8 +246,8 @@ def compile_latex(latex_filepath: str) -> str:
   # Use Docker to run pdflatex in a consistent environment.
   command = [
     "docker", "run", "--rm",
-    "-v", f"{directory}:/data",
-    "blang/latex:ctanfull",  # or "my-latex" if you built a custom image
+    "-v", f"{normalized_directory}:/data",
+    "my-latex",  # Use the custom image
     "pdflatex", "-interaction=nonstopmode",
     "-output-directory=/data/pdfs",
     filename
@@ -246,23 +255,66 @@ def compile_latex(latex_filepath: str) -> str:
   
   logger.info(f"Running command: {' '.join(command)}")
   result = subprocess.run(command, cwd=directory, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  stdout = result.stdout.decode()
+  stderr = result.stderr.decode()
+  logger.info("pdflatex stdout: %s", stdout)
+  logger.info("pdflatex stderr: %s", stderr)
   
   # Check for errors:
   pdf_filename = filename.replace(".tex", ".pdf")
-  pdf_filepath = os.path.join(directory, pdf_filename)
+  pdf_filepath = os.path.join(directory, "pdfs", pdf_filename)
   if not os.path.exists(pdf_filepath):
     err = result.stderr.decode() if result.stderr else "Unknown error"
     logger.error(f"PDF not generated. pdflatex error: {err}")
     raise Exception(f"PDF not generated. pdflatex error: {err}")
+  s3_bucket = "career-refined"
+  #s3_key = f"pdfs/resume_{some_unique_id}.pdf"
+  s3_key = f"pdfs/resume.pdf"
+  url_or_presigned = upload_pdf_to_s3(pdf_filepath, s3_bucket, s3_key)
 
-  logger.info(f"PDF successfully generated at: {pdf_filepath}")
-  return pdf_filepath
+  # pdf_filename = filename.replace(".tex", ".pdf")
+  #   # Assume pdf is generated in <directory>/pdfs/resume.pdf
+  # source_pdf_path = os.path.join(directory, "pdfs", pdf_filename)
+    
+  #   # Destination in your Next.js project public folder (adjust the path as needed)
+  # destination_pdf_path = os.path.join("..", "career-refined-frontend", "public", "pdfs", "resume.pdf")
+    
+  #   # Copy the generated PDF to the destination folder
+  # shutil.copy(source_pdf_path, destination_pdf_path)
+
+  logger.info(f"PDF successfully generated at: {url_or_presigned}")
+  return url_or_presigned
 
 
-def generate_resume_pdf(resume_data) -> str:
 
-    filePath = generate_resume_latex(resume_data)
-    #logger.info(f"Resume PDF generated at: {filePath}")
-    pdf_path = compile_latex(filePath)
-    #logger.info(f"Resume PDF compiled at: {pdf_path}")
-    return pdf_path
+def upload_pdf_to_s3(local_pdf_path: str, s3_bucket: str, s3_key: str) -> str:
+    """
+    Uploads a PDF file from the local path to the specified S3 bucket and key.
+    Returns the S3 object URL or a presigned URL.
+    """
+    s3_client = boto3.client("s3")
+    try:
+        # e.g. local_pdf_path = "pdfs/resume.pdf"
+        # s3_bucket = "my-app-pdfs"
+        # s3_key = "pdfs/resume.pdf"
+
+        s3_client.upload_file(
+            Filename=local_pdf_path,
+            Bucket=s3_bucket,
+            Key=s3_key,
+            ExtraArgs={
+                "ContentType": "application/pdf"
+            }
+        )
+
+        # Option A: Construct a public URL if the object is publicly accessible
+        # https://my-app-pdfs.s3.amazonaws.com/pdfs/resume.pdf
+        public_url = f"https://{s3_bucket}.s3.amazonaws.com/{s3_key}"
+        return public_url
+
+    except FileNotFoundError:
+        raise Exception("The file to upload was not found.")
+    except NoCredentialsError:
+        raise Exception("AWS credentials were not found.")
+    except ClientError as e:
+        raise Exception(f"Failed to upload PDF to S3: {e}")

@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Boolean, Text, Date, TIMESTAMP
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship
-from config.database import Base
+from app.core.database import Base
 
 class User(Base):
     __tablename__ = "users"

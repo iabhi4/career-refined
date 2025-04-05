@@ -1,8 +1,7 @@
 from sqlalchemy import Column, Integer, Text, TIMESTAMP, ForeignKey
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 from datetime import datetime
-from config.database import Base
+from app.core.database import Base
 
 class ApplicationAnalysis(Base):
     __tablename__ = "application_analysis"

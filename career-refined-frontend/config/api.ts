@@ -18,6 +18,9 @@ export const API_ENDPOINTS = {
     EDITOR_DATA: '/editor-data',
     EDITOR_DATA_FOR_FIRST_TIME: '/editor-data-new',
     PDF_STATUS: '/pdf-status',
+    TRACKER_DATA: '/tracker-data',
+    MANUAL_APPLICATION: '/manual-application',
+    CSV: '/csv',
 }
 
 export const axiosConfig = {

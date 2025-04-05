@@ -7,7 +7,10 @@ __pycache__/
 career-refined-backend/venv
 career-refined-backend/.env
 career-refined-backend/logs
-career-refined-backend/services/nltk_data
+career-refined-backend/nltk_data
+career-refined-backend/pdfs
+career-refined-backend/testthis.py
+career-refined-backend/resume.tex
 
 # Node modules
 career-refined-frontend/node_modules

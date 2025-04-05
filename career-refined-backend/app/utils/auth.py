@@ -1,17 +1,17 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Cookie
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import Depends, HTTPException, status, Cookie
+from fastapi.security import OAuth2PasswordBearer
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
-from config.database import get_db
-from utils.crud import get_auth_by_email
-from config.settings import settings
-from fastapi.responses import JSONResponse
-from schemas.auth import Auth
-from utils.models import TokenData
-from config.logging_config import get_logger
+from app.core.database import get_db
+from app.crud.user import get_auth_by_email
+from app.core.config import settings
+from app.schemas.auth import Auth
+from app.models.user import TokenData
+from app.core.logging_config import get_logger
 
 logger = get_logger(__name__)
 # Password hashing
@@ -59,7 +59,7 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
         
-    user = db.query(Auth).filter(Auth.email == token_data.email).first()
+    user = get_auth_by_email(db, token_data.email)
     if user is None:
         raise credentials_exception
         

@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Text
 from sqlalchemy.orm import relationship
-from config.database import Base
+from app.core.database import Base
 
 class CachedResume(Base):
     __tablename__ = "cached_resumes"

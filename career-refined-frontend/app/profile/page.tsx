@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { User, Pencil, Plus } from "lucide-react";
+import React, { useState, useEffect, createContext } from "react";
+import { User, Pencil, Plus, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,27 +11,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { Navbar } from "@/components/navbar/navbar";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth";
-import { Toast } from "@/components/ui/toast";
 import router from "next/router";
 import { ProfileService } from "@/services/profile";
 
-// Create a context to pass formData, setFormData, editIndex, and sectionDialog
-const DialogFormContext = React.createContext<any>(null);
+//----------------- Context for Dialog Form -----------------
+export const DialogFormContext = createContext<any>(null);
 
-/** 
- * RenderField component.
- * It reads formData and setFormData from context and renders an input or textarea.
- */
+//----------------- RenderField Component -----------------
 type RenderFieldProps = {
   label: string;
   field: string;
   type?: "text" | "textarea";
 };
 
-const RenderField: React.FC<RenderFieldProps> = ({ label, field, type = "text" }) => {
-  const { formData, setFormData } = React.useContext(DialogFormContext) || { formData: {}, setFormData: () => {} };
+export const RenderField: React.FC<RenderFieldProps> = ({ label, field, type = "text" }) => {
+  const { formData, setFormData } = React.useContext(DialogFormContext);
   return (
-    <div key={field}>
+    <div className="mb-4">
       <label className="block text-sm font-medium mb-1">{label}</label>
       {type === "textarea" ? (
         <Textarea
@@ -48,20 +44,16 @@ const RenderField: React.FC<RenderFieldProps> = ({ label, field, type = "text" }
   );
 };
 
-/**
- * ConditionalRenderField component.
- * It checks if we're editing and skips rendering identifier fields.
- */
+//----------------- ConditionalRenderField Component -----------------
 type ConditionalRenderFieldProps = {
   label: string;
   field: string;
   type?: "text" | "textarea";
 };
 
-const ConditionalRenderField: React.FC<ConditionalRenderFieldProps> = ({ label, field, type = "text" }) => {
-  const { formData, editIndex, sectionDialog } = React.useContext(DialogFormContext) || { formData: {}, editIndex: null, sectionDialog: null };
-
-  // When editing, skip the identifier field.
+export const ConditionalRenderField: React.FC<ConditionalRenderFieldProps> = ({ label, field, type = "text" }) => {
+  const { formData, editIndex, sectionDialog } = React.useContext(DialogFormContext);
+  // When editing, skip the identifier field:
   if (editIndex !== null) {
     if (sectionDialog === "experience" && field === "company") return null;
     if (sectionDialog === "education" && field === "school_name") return null;
@@ -70,19 +62,143 @@ const ConditionalRenderField: React.FC<ConditionalRenderFieldProps> = ({ label, 
   return <RenderField label={label} field={field} type={type} />;
 };
 
+//----------------- DeleteConfirmationDialog Component -----------------
+type DeleteDialogProps = {
+  open: boolean;
+  section: "experience" | "education" | "projects";
+  itemName: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+};
+
+export const DeleteConfirmationDialog: React.FC<DeleteDialogProps> = ({
+  open,
+  section,
+  itemName,
+  onConfirm,
+  onCancel,
+}) => (
+  <Dialog open={open} onOpenChange={(open) => { if (!open) onCancel(); }}>
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Confirm Deletion</DialogTitle>
+      </DialogHeader>
+      <div className="py-4">
+        <p>
+          Are you sure you want to delete <strong>{itemName}</strong> from <strong>{section}</strong>?
+        </p>
+      </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={onCancel}>No</Button>
+        <Button onClick={onConfirm}>Yes</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+);
+
+//----------------- ExperienceItem Component -----------------
+type ExperienceItemProps = {
+  exp: any;
+  onEdit: () => void;
+  onDelete: (identifier: string) => void;
+};
+
+export const ExperienceItem: React.FC<ExperienceItemProps> = ({ exp, onEdit, onDelete }) => {
+  const lines = (exp.description || "").split("\n").filter((line: string) => line.trim() !== "");
+  return (
+    <div className="relative border p-3 rounded mb-4">
+      <div className="absolute top-2 right-2 flex space-x-2">
+        <Pencil className="w-5 h-5 cursor-pointer hover:text-primary" onClick={onEdit} />
+        <Trash2 className="w-5 h-5 cursor-pointer hover:text-red-500" onClick={() => onDelete(exp.company)} />
+      </div>
+      {exp.position && <p className="font-medium">{exp.position}</p>}
+      {exp.company && <p className="text-sm text-muted-foreground">{exp.company}</p>}
+      {(exp.start_month || exp.end_month) && (
+        <p className="text-sm">
+          {exp.start_month} {exp.start_year} - {exp.end_month} {exp.end_year}
+        </p>
+      )}
+      {lines.length > 0 && (
+        <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+          {lines.map((line: string, i: number) => <li key={i}>{line}</li>)}
+        </ul>
+      )}
+    </div>
+  );
+};
+
+//----------------- EducationItem Component -----------------
+type EducationItemProps = {
+  edu: any;
+  onEdit: () => void;
+  onDelete: (identifier: string) => void;
+};
+
+export const EducationItem: React.FC<EducationItemProps> = ({ edu, onEdit, onDelete }) => (
+  <div className="border p-3 rounded flex items-center justify-between">
+    <div>
+      {edu.school_name && <p className="font-medium">{edu.school_name}</p>}
+      {edu.degree_type && <p className="text-sm text-muted-foreground">{edu.degree_type}</p>}
+      {(edu.start_month || edu.end_month) && (
+        <p className="text-sm">
+          {edu.start_month} {edu.start_year} - {edu.end_month} {edu.end_year}
+        </p>
+      )}
+      {edu.major && edu.major.trim() !== "" && <p className="text-sm">Major: {edu.major}</p>}
+      {edu.gpa && edu.gpa.trim() !== "" && <p className="text-sm">GPA: {edu.gpa}</p>}
+    </div>
+    <div className="flex space-x-2">
+      <Pencil className="cursor-pointer hover:text-primary" onClick={onEdit} />
+      <Trash2 className="cursor-pointer hover:text-red-500" onClick={() => onDelete(edu.school_name)} />
+    </div>
+  </div>
+);
+
+//----------------- ProjectItem Component -----------------
+type ProjectItemProps = {
+  proj: any;
+  onEdit: () => void;
+  onDelete: (identifier: string) => void;
+};
+
+export const ProjectItem: React.FC<ProjectItemProps> = ({ proj, onEdit, onDelete }) => {
+  const lines = (proj.description || "").split("\n").filter((line: string) => line.trim() !== "");
+  return (
+    <div className="relative border p-3 rounded mb-4">
+      <div className="absolute top-2 right-2 flex space-x-2">
+        <Pencil className="w-5 h-5 cursor-pointer hover:text-primary" onClick={onEdit} />
+        <Trash2 className="w-5 h-5 cursor-pointer hover:text-red-500" onClick={() => onDelete(proj.project_name)} />
+      </div>
+      {proj.project_name && <p className="font-medium">{proj.project_name}</p>}
+      {lines.length > 0 && (
+        <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+          {lines.map((line: string, i: number) => <li key={i}>{line}</li>)}
+        </ul>
+      )}
+    </div>
+  );
+};
+
+//----------------- Main ProfilePage Component -----------------
 export default function ProfilePage() {
   const { toast } = useToast();
   const { userId } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
+  const [showPersonalDialog, setShowPersonalDialog] = useState(false);
+  const [sectionDialog, setSectionDialog] = useState<"experience" | "education" | "projects" | null>(null);
+  const [editIndex, setEditIndex] = useState<number | null>(null);
+  const [editIdentifier, setEditIdentifier] = useState<string | null>(null);
+  const [formData, setFormData] = useState<any>({});
+  const [chipsDialogType, setChipsDialogType] = useState<"skills" | "languages" | "certifications" | null>(null);
+  const [chipsValue, setChipsValue] = useState<string[]>([]);
+  const [deleteDialog, setDeleteDialog] = useState<{ section: "experience" | "education" | "projects"; itemName: string; open: boolean } | null>(null);
 
-  // On mount, fetch profile data
   useEffect(() => {
     if (!userId) return;
     ProfileService.get_profile_data(userId)
       .then((data) => {
-        // Ensure these fields are arrays:
         data.skills = parseToArray(data.skills);
         data.languages = parseToArray(data.languages);
         data.certifications = parseToArray(data.certifications);
@@ -95,44 +211,54 @@ export default function ProfilePage() {
       });
   }, [userId]);
 
-  // ------------- DIALOG STATES -------------
-  const [showPersonalDialog, setShowPersonalDialog] = useState(false);
-  // "experience" | "projects" | "education"
-  const [sectionDialog, setSectionDialog] = useState<null | "experience" | "projects" | "education">(null);
-  // For edit mode, you might still keep editIndex if needed (or set it to a non-null value)
-  const [editIndex, setEditIndex] = useState<number | null>(null); // null => add
-  const [editIdentifier, setEditIdentifier] = useState<string | null>(null);
-  const [formData, setFormData] = useState<any>({});
+  if (loading) return <div className="p-4">Loading profile...</div>;
+  if (!profile) return <div className="p-4">No profile data found.</div>;
 
-  const [chipsDialogType, setChipsDialogType] = useState<null | "skills" | "languages" | "certifications">(null);
-  const [chipsValue, setChipsValue] = useState<string[]>([]);
-
-  if (loading) {
-    return <div className="p-4">Loading profile...</div>;
+  // ---------------- Delete Dialog Handlers ----------------
+  function openDeleteDialog(section: "experience" | "education" | "projects", itemName: string) {
+    setDeleteDialog({ section, itemName, open: true });
   }
-  if (!profile) {
-    return <div className="p-4">No profile data found.</div>;
-  }
-
-  // ------------- PERSONAL -------------
-  function openPersonalDialog() {
-    const pd = profile.personalDetails;
-    setFormData({ ...pd });
-    setShowPersonalDialog(true);
-  }
-  async function savePersonalDetails() {
-    if (!userId) return;
+  async function handleDeleteConfirm() {
+    if (!deleteDialog || !userId) return;
     try {
-      await ProfileService.editPersonalInfo(userId, formData);
-      setProfile({ ...profile, personalDetails: formData });
-      toast({ title: "Personal details updated!", duration: 3000 });
-      setShowPersonalDialog(false);
-    } catch (err) {
-      toast({ title: "Failed to update personal details", variant: "destructive" });
+      if (deleteDialog.section === "experience") {
+        await ProfileService.deleteExperience(userId, deleteDialog.itemName);
+        setProfile({
+          ...profile,
+          experience: profile.experience.filter((exp: any) => exp.company !== deleteDialog.itemName)
+        });
+        toast({ title: "Experience deleted!", duration: 3000 });
+      } else if (deleteDialog.section === "education") {
+        await ProfileService.deleteEducation(userId, deleteDialog.itemName);
+        setProfile({
+          ...profile,
+          education: profile.education.filter((edu: any) => edu.school_name !== deleteDialog.itemName)
+        });
+        toast({ title: "Education entry deleted!", duration: 3000 });
+      } else if (deleteDialog.section === "projects") {
+        await ProfileService.deleteProject(userId, deleteDialog.itemName);
+        setProfile({
+          ...profile,
+          projects: profile.projects.filter((proj: any) => proj.project_name !== deleteDialog.itemName)
+        });
+        toast({ title: "Project deleted!", duration: 3000 });
+      }
+    } catch (error) {
+      console.error("Deletion error:", error);
+      toast({ title: "Failed to delete item", variant: "destructive" });
+    } finally {
+      setDeleteDialog(null);
     }
   }
+  function handleDeleteCancel() {
+    setDeleteDialog(null);
+  }
 
-  // ------------- EXPERIENCE / EDUCATION / PROJECTS -------------
+  // ---------------- Dialog Handlers for Add/Edit ----------------
+  function openPersonalDialog() {
+    setFormData({ ...profile.personalDetails });
+    setShowPersonalDialog(true);
+  }
   function openAddDialog(section: "experience" | "education" | "projects") {
     setSectionDialog(section);
     setEditIndex(null);
@@ -145,52 +271,45 @@ export default function ProfilePage() {
     const existing = profile[section][idx];
     setFormData({ ...existing });
     let identifier = "";
-    if (section === "experience") {
-      identifier = existing.company; // Company becomes the identifier.
-    } else if (section === "education") {
-      identifier = existing.school_name; // School Name is used.
-    } else if (section === "projects") {
-      identifier = existing.project_name; // Project Name is used.
-    }
+    if (section === "experience") identifier = existing.company;
+    else if (section === "education") identifier = existing.school_name;
+    else if (section === "projects") identifier = existing.project_name;
     setEditIdentifier(identifier);
   }
   async function saveSectionDialog() {
     if (!userId || !sectionDialog) return;
+    const updatedFormData = { ...formData };
     if (editIdentifier === null) {
-      // Add mode
       if (sectionDialog === "experience") {
-        const updatedFormData = sanitizeFormData(formData);
         const newExp = await ProfileService.addExperience(userId, updatedFormData);
         setProfile({ ...profile, experience: [...profile.experience, newExp] });
         toast({ title: "New experience added!", duration: 3000 });
       } else if (sectionDialog === "education") {
-        const newEdu = await ProfileService.addEducation(userId, formData);
+        const newEdu = await ProfileService.addEducation(userId, updatedFormData);
         setProfile({ ...profile, education: [...profile.education, newEdu] });
         toast({ title: "New education added!", duration: 3000 });
       } else if (sectionDialog === "projects") {
-        const newProj = await ProfileService.addProject(userId, formData);
+        const newProj = await ProfileService.addProject(userId, updatedFormData);
         setProfile({ ...profile, projects: [...profile.projects, newProj] });
         toast({ title: "New project added!", duration: 3000 });
       }
     } else {
-      // Edit mode: Use the identifier for matching
-      const updatedFormData = sanitizeFormData(formData);
       if (sectionDialog === "experience") {
-        const updatedExp = await ProfileService.editExperience(userId, editIdentifier, updatedFormData);
+        await ProfileService.editExperience(userId, editIdentifier, updatedFormData);
         const updated = profile.experience.map((exp: any) =>
           exp.company === editIdentifier ? updatedFormData : exp
         );
         setProfile({ ...profile, experience: updated });
         toast({ title: "Experience updated!", duration: 3000 });
       } else if (sectionDialog === "education") {
-        const updatedEdu = await ProfileService.editEducation(userId, editIdentifier, updatedFormData);
+        await ProfileService.editEducation(userId, editIdentifier, updatedFormData);
         const updated = profile.education.map((edu: any) =>
           edu.school_name === editIdentifier ? updatedFormData : edu
         );
         setProfile({ ...profile, education: updated });
         toast({ title: "Education updated!", duration: 3000 });
       } else if (sectionDialog === "projects") {
-        const updatedProj = await ProfileService.editProject(userId, editIdentifier, updatedFormData);
+        await ProfileService.editProject(userId, editIdentifier, updatedFormData);
         const updated = profile.projects.map((proj: any) =>
           proj.project_name === editIdentifier ? updatedFormData : proj
         );
@@ -198,14 +317,13 @@ export default function ProfilePage() {
         toast({ title: "Project updated!", duration: 3000 });
       }
     }
-    // Clear dialog state
     setSectionDialog(null);
     setFormData({});
     setEditIdentifier(null);
     setEditIndex(null);
   }
 
-  // ------------- SKILLS / LANGUAGES / CERTIFICATIONS -------------
+
   function openChipsDialog(type: "skills" | "languages" | "certifications") {
     setChipsDialogType(type);
     setChipsValue([...profile[type]]);
@@ -234,20 +352,30 @@ export default function ProfilePage() {
     setChipsDialogType(null);
   }
 
-  function sanitizeFormData(formData: any) {
-    const sanitizedData = { ...formData };
-    if (sanitizedData.hasOwnProperty("start_year")) {
-      const parsedStart = parseInt(sanitizedData.start_year, 10);
-      sanitizedData.start_year = isNaN(parsedStart) ? null : parsedStart;
+  async function savePersonalDetails() {
+    if (!userId) return;
+    try {
+      await ProfileService.editPersonalInfo(userId, formData);
+      setProfile({ ...profile, personalDetails: formData });
+      toast({ title: "Personal details updated!", duration: 3000 });
+      setShowPersonalDialog(false);
+    } catch (err) {
+      toast({ title: "Failed to update personal details", variant: "destructive" });
     }
-    if (sanitizedData.hasOwnProperty("end_year")) {
-      const parsedEnd = parseInt(sanitizedData.end_year, 10);
-      sanitizedData.end_year = isNaN(parsedEnd) ? null : parsedEnd;
-    }
-    return sanitizedData;
   }
 
-  // For read-only display
+  // ---------------- Helper Functions ----------------
+  function parseToArray(value: any): string[] {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === "string") {
+      return value.split(",").map((item) => item.trim()).filter((item) => item.length > 0);
+    }
+    return [];
+  }
+  function arrayToCommaSeparatedString(arr: string[]): string {
+    return arr.join(", ");
+  }
   function renderReadOnlyField(label: string, value: any) {
     if (!value) return null;
     return (
@@ -257,107 +385,17 @@ export default function ProfilePage() {
     );
   }
 
-  function renderExperienceItem(exp: any, idx: number) {
-    const lines = (exp.description || "").split("\n").filter((line: string) => line.trim() !== "");
-    return (
-      <div key={idx} className="relative border p-3 rounded mb-4">
-        <Pencil
-          className="absolute top-2 right-2 w-5 h-5 cursor-pointer hover:text-primary"
-          onClick={() => openEditDialog("experience", idx)}
-        />
-        {exp.position && <p className="font-medium">{exp.position}</p>}
-        {exp.company && <p className="text-sm text-muted-foreground">{exp.company}</p>}
-        {(exp.start_month || exp.end_month) && (
-          <p className="text-sm">
-            {exp.start_month} {exp.start_year} - {exp.end_month} {exp.end_year}
-          </p>
-        )}
-        {lines.length > 0 && (
-          <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
-            {lines.map((line: string, i: number) => (
-              <li key={i}>{line}</li>
-            ))}
-          </ul>
-        )}
-      </div>
-    );
-  }
-
-  function renderEducationItem(edu: any, idx: number) {
-    const hasSchool = edu.school_name && edu.school_name.trim() !== "";
-    const hasDegree = edu.degree_type && edu.degree_type.trim() !== "";
-    const hasDates = edu.start_month || edu.end_month;
-    return (
-      <div key={idx} className="border p-3 rounded flex items-center justify-between">
-        <div>
-          {hasSchool && <p className="font-medium">{edu.school_name}</p>}
-          {hasDegree && <p className="text-sm text-muted-foreground">{edu.degree_type}</p>}
-          {hasDates && (
-            <p className="text-sm">
-              {edu.start_month} {edu.start_year} - {edu.end_month} {edu.end_year}
-            </p>
-          )}
-          {edu.major && edu.major.trim() !== "" && <p className="text-sm">Major: {edu.major}</p>}
-          {edu.gpa && edu.gpa.trim() !== "" && <p className="text-sm">GPA: {edu.gpa}</p>}
-        </div>
-        <Pencil
-          className="cursor-pointer hover:text-primary"
-          onClick={() => openEditDialog("education", idx)}
-        />
-      </div>
-    );
-  }
-
-  function renderProjectItem(proj: any, idx: number) {
-    const lines = (proj.description || "").split("\n").filter((line: string) => line.trim() !== "");
-    return (
-      <div key={idx} className="relative border p-3 rounded mb-4">
-        <Pencil
-          className="absolute top-2 right-2 w-5 h-5 cursor-pointer hover:text-primary"
-          onClick={() => openEditDialog("projects", idx)}
-        />
-        {proj.project_name && <p className="font-medium">{proj.project_name}</p>}
-        {lines.length > 0 && (
-          <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
-            {lines.map((line: string, i: number) => (
-              <li key={i}>{line}</li>
-            ))}
-          </ul>
-        )}
-      </div>
-    );
-  }
-
-  // Helpers for arrays
-  function parseToArray(value: any): string[] {
-    if (!value) return [];
-    if (Array.isArray(value)) return value;
-    if (typeof value === "string") {
-      return value.split(",").map((item) => item.trim()).filter((item) => item.length > 0);
-    }
-    return [];
-  }
-
-  function arrayToCommaSeparatedString(arr: string[]): string {
-    return arr.join(", ");
-  }
-
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <Navbar onLogout={() => { router.push("/auth/login"); Toast({ title: "Logged out successfully", variant: "default" }); }} />
+      <Navbar onLogout={() => router.push("/auth/login")} />
       <main className="max-w-screen-lg mx-auto p-4">
-        {/* ===== Personal Details ===== */}
+        {/* Personal Details */}
         <Card className="mb-6 bg-card text-card-foreground shadow rounded-lg">
           <CardHeader className="relative px-6 pt-6 pb-2">
-            <Pencil
-              className="absolute top-6 right-6 cursor-pointer hover:text-primary"
-              onClick={openPersonalDialog}
-            />
+            <Pencil className="absolute top-6 right-6 cursor-pointer hover:text-primary" onClick={openPersonalDialog} />
             <div className="flex items-center space-x-4">
               <div className="relative w-20 h-20 bg-muted rounded-full overflow-hidden">
-                <div className="relative w-20 h-20 bg-muted rounded-full flex items-center justify-center overflow-hidden">
-                  <User className="w-10 h-10 text-muted-foreground" />
-                </div>
+                <User className="w-10 h-10 text-muted-foreground" />
               </div>
               <div>
                 <CardTitle className="text-2xl">{profile.personalDetails.name || "N/A"}</CardTitle>
@@ -376,55 +414,66 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        {/* ===== Work Experience ===== */}
+        {/* Work Experience */}
         <Card className="mb-6 bg-card text-card-foreground p-4 shadow rounded-lg">
           <CardHeader className="relative px-6 pt-6 pb-2">
-            <Plus
-              className="absolute top-6 right-6 cursor-pointer hover:text-primary"
-              onClick={() => openAddDialog("experience")}
-            />
+            <Plus className="absolute top-6 right-6 cursor-pointer hover:text-primary" onClick={() => openAddDialog("experience")} />
             <CardTitle className="text-lg">Work Experience</CardTitle>
           </CardHeader>
           <CardContent className="px-6 pb-6 space-y-4">
-            {profile.experience.map((exp: any, idx: number) => renderExperienceItem(exp, idx))}
+            {profile.experience.map((exp: any, idx: number) => (
+              <ExperienceItem
+                key={idx}
+                exp={exp}
+                onEdit={() => openEditDialog("experience", idx)}
+                onDelete={(identifier) => openDeleteDialog("experience", identifier)}
+              />
+            ))}
           </CardContent>
         </Card>
 
-        {/* ===== Education ===== */}
+        {/* Education */}
         <Card className="mb-6 bg-card text-card-foreground p-4 shadow rounded-lg">
           <CardHeader className="relative px-6 pt-6 pb-2">
-            <Plus
-              className="absolute top-6 right-6 cursor-pointer hover:text-primary"
-              onClick={() => openAddDialog("education")}
-            />
+            <Plus className="absolute top-6 right-6 cursor-pointer hover:text-primary" onClick={() => openAddDialog("education")} />
             <CardTitle className="text-lg">Education</CardTitle>
           </CardHeader>
           <CardContent className="px-6 pb-6 space-y-4">
-            {profile.education.map((edu: any, idx: number) => renderEducationItem(edu, idx))}
+            {profile.education.map((edu: any, idx: number) => (
+              <EducationItem
+                key={idx}
+                edu={edu}
+                onEdit={() => openEditDialog("education", idx)}
+                onDelete={(identifier) => openDeleteDialog("education", identifier)}
+              />
+            ))}
           </CardContent>
         </Card>
 
-        {/* ===== Projects ===== */}
+        {/* Projects */}
         <Card className="mb-6 bg-card text-card-foreground p-4 shadow rounded-lg">
           <CardHeader className="relative px-6 pt-6 pb-2">
-            <Plus
-              className="absolute top-6 right-6 cursor-pointer hover:text-primary"
-              onClick={() => openAddDialog("projects")}
-            />
+            <Plus className="absolute top-6 right-6 cursor-pointer hover:text-primary" onClick={() => openAddDialog("projects")} />
             <CardTitle className="text-lg">Projects</CardTitle>
           </CardHeader>
           <CardContent className="px-6 pb-6 space-y-4">
-            {profile.projects.map((proj: any, idx: number) => renderProjectItem(proj, idx))}
+            {profile.projects.map((proj: any, idx: number) => (
+              <ProjectItem
+                key={idx}
+                proj={proj}
+                onEdit={() => openEditDialog("projects", idx)}
+                onDelete={(identifier) => openDeleteDialog("projects", identifier)}
+              />
+            ))}
           </CardContent>
         </Card>
 
-        {/* ===== Skills, Languages, Certifications ===== */}
+        {/* Skills, Languages, Certifications */}
         <Card className="mb-6 bg-card text-card-foreground p-4 shadow rounded-lg">
           <CardHeader className="px-6 pt-6 pb-2">
             <CardTitle className="text-lg">Other Important Details</CardTitle>
           </CardHeader>
           <CardContent className="px-6 pb-6 space-y-4">
-            {/* Skills */}
             <div>
               <div className="flex items-center justify-between">
                 <p className="font-medium mb-2">Skills:</p>
@@ -436,7 +485,6 @@ export default function ProfilePage() {
                 ))}
               </div>
             </div>
-            {/* Languages */}
             <div>
               <div className="flex items-center justify-between">
                 <p className="font-medium mb-2">Languages:</p>
@@ -448,7 +496,6 @@ export default function ProfilePage() {
                 ))}
               </div>
             </div>
-            {/* Certifications */}
             <div>
               <div className="flex items-center justify-between">
                 <p className="font-medium mb-2">Certifications:</p>
@@ -464,7 +511,18 @@ export default function ProfilePage() {
         </Card>
       </main>
 
-      {/* ===== Dialog: Personal Details ===== */}
+      {/* Delete Confirmation Dialog */}
+      {deleteDialog && (
+        <DeleteConfirmationDialog
+          open={deleteDialog.open}
+          section={deleteDialog.section}
+          itemName={deleteDialog.itemName}
+          onConfirm={handleDeleteConfirm}
+          onCancel={handleDeleteCancel}
+        />
+      )}
+
+      {/* Personal Details Edit Dialog */}
       <Dialog open={showPersonalDialog} onOpenChange={setShowPersonalDialog}>
         <DialogContent>
           <DialogHeader>
@@ -488,15 +546,12 @@ export default function ProfilePage() {
         </DialogContent>
       </Dialog>
 
-      {/* ===== Dialog: Add/Edit Experience/Education/Projects ===== */}
+      {/* Add/Edit Dialog for Experience/Education/Projects */}
       <Dialog open={!!sectionDialog} onOpenChange={() => setSectionDialog(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {editIdentifier === null
-                ? `Add ${sectionDialog}`
-                : `Edit ${sectionDialog} - ${editIdentifier}`
-              }
+              {editIdentifier === null ? `Add ${sectionDialog}` : `Edit ${sectionDialog} - ${editIdentifier}`}
             </DialogTitle>
           </DialogHeader>
           <DialogFormContext.Provider value={{ formData, setFormData, editIndex, sectionDialog }}>

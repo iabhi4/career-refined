@@ -8,3 +8,4 @@ openai
 nltk
 python-jose[cryptography]
 jinja2
+boto3

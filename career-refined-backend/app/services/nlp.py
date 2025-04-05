@@ -1,12 +1,8 @@
-import os
-import re
-import nltk
+import os, re, json, nltk
 from nltk.corpus import stopwords
-from nltk.data import find
 from openai import OpenAI
 from dotenv import load_dotenv
-from config.logging_config import get_logger
-import json
+from app.core.logging_config import get_logger
 
 load_dotenv()
 logger = get_logger(__name__)

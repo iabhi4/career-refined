@@ -1,5 +1,5 @@
 from typing import Dict, List, Any
-from config.logging_config import get_logger
+from app.core.logging_config import get_logger
 
 logger = get_logger(__name__)
 

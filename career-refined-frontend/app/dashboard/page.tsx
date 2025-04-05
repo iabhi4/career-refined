@@ -50,6 +50,7 @@ export default function DashboardPage() {
   const [projects, setProjects] = useState<{id: number; project_name: string}[]>([]);
   const [selectedExps, setSelectedExps] = useState<number[]>([]);
   const [selectedProjs, setSelectedProjs] = useState<number[]>([]);
+  const [addToTracker, setAddToTracker] = useState(false);
 
   function handleLogout() {
     router.push("/auth/login");
@@ -74,6 +75,7 @@ export default function DashboardPage() {
         company,
         location,
         job_description: jobDescription,
+        add_to_tracker: addToTracker,
       });
 
       // Build array of processed keywords
@@ -98,6 +100,7 @@ export default function DashboardPage() {
       setLocation("");
       setJobRole("");
       setJobDescription("");
+      setAddToTracker(false);
     } catch (error) {
       console.error("Error analyzing job description:", error);
       // handle error (toast, etc.)
@@ -216,7 +219,8 @@ export default function DashboardPage() {
             </div>
 
             {/* ===== Analyze Button at the old position ===== */}
-            <div className="mt-4">
+            <div className="mt-4 flex items-center">
+              {/* Analyze button on the left */}
               <Button
                 onClick={handleAnalyze}
                 disabled={loading || !jobDescription}
@@ -224,6 +228,18 @@ export default function DashboardPage() {
               >
                 {loading ? "Analyzing..." : "Analyze"}
               </Button>
+
+              {/* Checkbox on the right (margin-left: auto pushes it to far right) */}
+              <div className="ml-auto flex items-center space-x-2">
+                <Checkbox
+                  checked={addToTracker}
+                  onCheckedChange={(checked) => setAddToTracker(Boolean(checked))}
+                  id="addToTracker"
+                />
+                <label htmlFor="addToTracker" className="text-sm">
+                  Add to tracker
+                </label>
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -90,8 +90,31 @@ export class ProfileService {
         });
         return response.data;
     }
-  }
+
+    static async deleteExperience(user_id: number, company: string) { 
+        const response = await axios.delete(
+          `${API_URL}${API_ENDPOINTS.USERS}/${user_id}${API_ENDPOINTS.WORK_EXPERIENCE}?company=${encodeURIComponent(company)}`,
+          { ...axiosConfig, withCredentials: true }
+        );
+        return response.data;
+    }
+
+    static async deleteEducation(user_id: number, school_name: string) { 
+        const response = await axios.delete(
+          `${API_URL}${API_ENDPOINTS.USERS}/${user_id}${API_ENDPOINTS.EDUCATION}?school_name=${encodeURIComponent(school_name)}`,
+          { ...axiosConfig, withCredentials: true }
+        );
+        return response.data;
+    }
+
+    static async deleteProject(user_id: number, project_name: string) { 
+        const response = await axios.delete(
+          `${API_URL}${API_ENDPOINTS.USERS}/${user_id}${API_ENDPOINTS.PROJECTS}?project_name=${encodeURIComponent(project_name)}`,
+          { ...axiosConfig, withCredentials: true }
+        );
+        return response.data;
+    }
     
-    
+}   
     
     

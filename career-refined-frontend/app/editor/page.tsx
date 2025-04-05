@@ -141,7 +141,7 @@ export default function EditorPage() {
     setShowNewOrLastDialog(false);
     if (!userId) return;
     try {
-      const data = await ApplicationService.fetchEditorData(userId);
+      const data = await ApplicationService.fetchCachedResumeData(userId);
       setEditorContent(data.editorContent);
       setPdfUrl(data.pdfUrl);
     } catch (error) {
@@ -163,6 +163,16 @@ export default function EditorPage() {
     }
   }
 
+  async function checkPdfExists(url: string): Promise<boolean> {
+    try {
+      // A HEAD request is more efficient because it only fetches headers
+      const response = await fetch(url, { method: "HEAD" });
+      return response.ok;
+    } catch (error) {
+      return false;
+    }
+  }
+
   async function handleUpdatePdf() {
     if (!userId) return;
     if (resumeEditorRef.current) {
@@ -174,21 +184,31 @@ export default function EditorPage() {
         // Optionally show a loading state for PDF generation
         toast({ title: "PDF generation in progress...", duration: 3000 });
         
-        // const intervalId = setInterval(async () => {
-        //   const statusResp = await ApplicationService.getPdfStatus(taskId);
-        //   if (statusResp.state === "SUCCESS") {
-        //     clearInterval(intervalId);
-        //     const pdfUrl = statusResp.pdf_path;
-        //     setPdfUrl(pdfUrl);
-        //     toast({ title: "PDF updated successfully", duration: 3000 });
-        //   } else if (statusResp.state === "FAILURE") {
-        //     clearInterval(intervalId);
-        //     alert("Failed to generate PDF: " + statusResp.error);
-        //   }
-        // }, 3000);
-        
-        // Remove or comment out this line if result.pdfUrl is not reliable:
-        // setPdfUrl(result.pdfUrl);
+        const intervalId = setInterval(async () => {
+          const statusResp = await ApplicationService.getPdfStatus(taskId);
+          if (statusResp.state === "SUCCESS") {
+            clearInterval(intervalId);
+            const pdfUrl = statusResp.pdf_path;
+            setPdfUrl(pdfUrl);
+            toast({ title: "PDF updated successfully", duration: 3000 });
+          } else if (statusResp.state === "FAILURE") {
+            clearInterval(intervalId);
+            alert("Failed to generate PDF: " + statusResp.error);
+          }
+        }, 3000);
+
+      //   const pdfUrl = "http://localhost:3000/pdfs/resume.pdf";
+      //   const pollInterval = 3000; // 3 seconds
+
+      //   // Start polling for the file
+      //   const intervalId = setInterval(async () => {
+      //     const exists = await checkPdfExists(pdfUrl);
+      //     if (exists) {
+      //       clearInterval(intervalId);
+      //       setPdfUrl(pdfUrl);
+      //       toast({ title: "PDF updated successfully", duration: 3000 });
+      //     }
+      // }, pollInterval);
       } catch (error) {
         console.error("Error updating PDF:", error);
         toast({ title: "Failed to update PDF", variant: "destructive" });

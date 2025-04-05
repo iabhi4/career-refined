@@ -9,96 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-
-// Example: use a standard <select> or a custom "Select" component
-// We'll just use HTML <select> for the filter in this snippet.
-
-const ApplicationService = {
-  async fetchApplications() {
-    // In production, you'd do a real fetch, e.g.:
-    // return await fetch(`/api/applications?userId=...`).then(res => res.json());
-    return Promise.resolve([
-      {
-        id: 1,
-        job_role: "Software Engineer",
-        company: "Acme Technologies",
-        location: "Remote, USA",
-        date_applied: "2025-02-20",
-        application_status: "Applied",
-        job_description: "We are looking for a software engineer...\nFocus on microservices.\nTeam-based environment.",
-        extracted_job_keywords: "Java, Microservices, Team Collaboration",
-        final_resume_used: "resume_v2.pdf"
-      },
-      {
-        id: 2,
-        job_role: "Frontend Developer",
-        company: "TechCorp",
-        location: "New York, NY",
-        date_applied: "2025-02-15",
-        application_status: "Interview",
-        job_description: "Frontend dev with React and TypeScript.\nFocus on performance.\nCDN usage, lazy loading.",
-        extracted_job_keywords: "React, TypeScript, Performance",
-        final_resume_used: "resume_v3.pdf"
-      },
-      {
-        id: 3,
-        job_role: "Full Stack Engineer",
-        company: "Innovate Inc",
-        location: "San Francisco, CA",
-        date_applied: "2025-02-15",
-        application_status: "Rejected",
-        job_description: "Full stack with Node.js, React.\nFocus on test coverage.\nIntegration with Docker.",
-        extracted_job_keywords: "Node.js, React, Docker",
-        final_resume_used: "resume_v2.pdf"
-      },
-      {
-        id: 4,
-        job_role: "DevOps Engineer",
-        company: "Cloud Systems",
-        location: "Remote, USA",
-        date_applied: "2025-02-22",
-        application_status: "Saved",
-        job_description: "AWS, Terraform, CI/CD.\nFocus on high availability.\nMonitoring with Prometheus.",
-        extracted_job_keywords: "AWS, Terraform, CI/CD, Prometheus",
-        final_resume_used: "resume_devops.pdf"
-      },
-      {
-        id: 5,
-        job_role: "Data Scientist",
-        company: "Data Insights",
-        location: "Boston, MA",
-        date_applied: "2025-02-29",
-        application_status: "Offer",
-        job_description: "ML pipelines with Python.\nFocus on big data.\nSpark, Hadoop usage.",
-        extracted_job_keywords: "Python, Spark, Hadoop",
-        final_resume_used: "resume_ds.pdf"
-      },
-      {
-        id: 6,
-        job_role: "Backend Engineer",
-        company: "Serverless Tech",
-        location: "Seattle, WA",
-        date_applied: "2025-02-10",
-        application_status: "Pending",
-        job_description: "Serverless frameworks.\nFocus on AWS Lambda.\nEvent-driven architecture.",
-        extracted_job_keywords: "AWS Lambda, Serverless, Event-driven",
-        final_resume_used: "resume_backend.pdf"
-      },
-      // ... more mock data
-    ]);
-  },
-
-  async saveManualApplication(data: any) {
-    return { ...data, id: Date.now() };
-  },
-
-  async exportCSV() {
-    alert("Exporting CSV (placeholder)...");
-  }
-};
+import { ApplicationService } from "@/services/application";
+import { useAuth } from "@/contexts/auth";
 
 export default function JobTrackerPage() {
   const { toast } = useToast();
+  const { userId } = useAuth(); 
   // We assume you have user ID from your auth context or something else
   // We'll skip that part for brevity
 
@@ -128,10 +44,12 @@ export default function JobTrackerPage() {
   // Dialog for showing more details of a clicked application
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [selectedApp, setSelectedApp] = useState<any>(null);
+  const todayString = new Date().toISOString().split("T")[0];
 
   // On mount, fetch data
   useEffect(() => {
-    ApplicationService.fetchApplications().then((data) => {
+    if (!userId) return;
+    ApplicationService.getTrackerData(userId).then((data) => {
       setApplications(data);
       setLoading(false);
     });
@@ -143,10 +61,12 @@ export default function JobTrackerPage() {
 
   // Filtering logic
   const filteredApplications = applications.filter((app) => {
-    // Search in job_role or company
+    const role = app.job_role || "";
+    const comp = app.company || "";
+
     const matchesSearch =
-      app.job_role.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.company.toLowerCase().includes(searchQuery.toLowerCase());
+    role.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    comp.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesStatus = statusFilter
       ? app.application_status.toLowerCase() === statusFilter.toLowerCase()
@@ -175,11 +95,18 @@ export default function JobTrackerPage() {
 
   // Add Application
   async function handleAddApplication() {
+    if (!userId) return;
     try {
-      const saved = await ApplicationService.saveManualApplication(addFormData);
+      const saved = await ApplicationService.saveManualApplication(userId, addFormData);
+      // => 1) Sends data to the backend
+      // => 2) 'saved' should be the created application object
+  
       setApplications([...applications, saved]);
+      // => 3) Append to local state
+  
       toast({ title: "Application added successfully!", duration: 3000 });
       setShowAddDialog(false);
+      // => Reset form
       setAddFormData({
         job_role: "",
         company: "",
@@ -195,6 +122,9 @@ export default function JobTrackerPage() {
 
   // UI for status label with color-coded styles
   function renderStatusBadge(status: string) {
+    if (!status) {
+      return <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-sm">Unknown</span>;
+    }
     let badgeClass = "bg-muted text-muted-foreground";
     switch (status.toLowerCase()) {
       case "applied":
@@ -227,6 +157,16 @@ export default function JobTrackerPage() {
     // ...
   }
 
+  async function handleExportCSV() {
+    if (!userId) return;  
+    try {
+      await ApplicationService.exportCSV(userId);
+      toast({ title: "CSV exported successfully!", duration: 3000 });
+    } catch (err) {
+      toast({ title: "Failed to export CSV", variant: "destructive" });
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Navbar onLogout={handleLogout} />
@@ -236,7 +176,7 @@ export default function JobTrackerPage() {
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-xl font-bold">Your Job Tracker</h1>
           <div className="space-x-2">
-            <Button variant="outline" onClick={() => ApplicationService.exportCSV()}>
+            <Button variant="outline" onClick={() => handleExportCSV()}>
               Export CSV
             </Button>
             <Button
@@ -323,7 +263,11 @@ export default function JobTrackerPage() {
                   <td className="py-2 px-3">{app.job_role}</td>
                   <td className="py-2 px-3">{app.company}</td>
                   <td className="py-2 px-3">{app.location}</td>
-                  <td className="py-2 px-3">{app.date_applied}</td>
+                  <td className="py-2 px-3">
+                    {new Date(app.date_applied).toLocaleDateString("en-US", { 
+                      year: "numeric", month: "2-digit", day: "2-digit" 
+                    })}
+                  </td>
                   <td className="py-2 px-3">{renderStatusBadge(app.application_status)}</td>
                 </tr>
               ))}
@@ -388,6 +332,7 @@ export default function JobTrackerPage() {
                 type="date"
                 value={addFormData.date_applied}
                 onChange={(e) => setAddFormData({ ...addFormData, date_applied: e.target.value })}
+                max={todayString}
               />
             </div>
             <div>
@@ -468,11 +413,11 @@ export default function JobTrackerPage() {
                   <span className="font-medium">Extracted Keywords:</span> {selectedApp.extracted_job_keywords}
                 </p>
               )}
-              {selectedApp.final_resume_used && (
+              {/* {selectedApp.final_resume_used && (
                 <p>
                   <span className="font-medium">Resume Used:</span> {selectedApp.final_resume_used}
                 </p>
-              )}
+              )} */}
             </div>
           )}
           <DialogFooter className="mt-4">
