@@ -57,7 +57,7 @@ export class ApplicationService {
         job_description: string;
         add_to_tracker: boolean;
         }) {
-        const response = await axios.post(`${API_URL}${API_ENDPOINTS.APPLICATIONS}`, data, {
+        const response = await axios.post(`${API_URL}${API_ENDPOINTS.APPLICATIONS}${API_ENDPOINTS.CREATE_AND_ANALYZE}/`, data, {
             withCredentials: true,
         });
         return response.data;
@@ -131,5 +131,19 @@ export class ApplicationService {
         link.setAttribute('download', 'applications.csv'); // Specify the file name
         document.body.appendChild(link);
         link.click();
+    }
+
+    static async createAndAnalyzeApplicationNew(data: {
+        user_id: number;
+        job_role: string;
+        company: string;
+        location: string;
+        job_description: string;
+        add_to_tracker: boolean;
+        }) {
+        const response = await axios.post(`${API_URL}${API_ENDPOINTS.APPLICATIONS}${API_ENDPOINTS.NEW_ANALYSIS}`, data, {
+            withCredentials: true,
+        });
+        return response.data;
     }
 }

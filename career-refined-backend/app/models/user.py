@@ -109,3 +109,6 @@ class ResumeDataModel(BaseModel):
     personalDetails: PersonalDetails
     projects: List[Project]
     skills: Skills
+
+class MessageOut(BaseModel):
+    message: str

@@ -11,6 +11,7 @@ career-refined-backend/nltk_data
 career-refined-backend/pdfs
 career-refined-backend/testthis.py
 career-refined-backend/resume.tex
+career-refined-backend/chroma_db_persistent
 
 # Node modules
 career-refined-frontend/node_modules

@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: Optional[str] = os.getenv("AWS_SECRET_ACCESS_KEY")
     AWS_DEFAULT_REGION: Optional[str] = os.getenv("AWS_DEFAULT_REGION")
 
+
+    EMBEDDING_MODEL_NAME: str = "text-embedding-3-small"
+    RAG_CHUNK_SIZE: int = 750
+    RAG_CHUNK_OVERLAP: int = 100
+    CHROMA_PERSIST_DIRECTORY: str = "./chroma_db_persistent"
+    GENERATION_MODEL_NAME: str = "gpt-4o"
+
     class Config:
         case_sensitive = True
         env_file = ".env"

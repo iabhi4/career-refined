@@ -13,13 +13,16 @@ export const API_ENDPOINTS = {
     LANGUAGES: '/languages',
     CERTIFICATIONS: '/certifications',
     LOGOUT: '/logout',
-    APPLICATIONS: '/applications/create-and-analyze',
+    APPLICATIONS: '/applications',
+    CREATE_AND_ANALYZE: '/create-and-analyze',
+    NEW_ANALYSIS: '/new-analysis',
     PROJECTS_AND_EXPERIENCES: '/projects-and-experiences',
     EDITOR_DATA: '/editor-data',
     EDITOR_DATA_FOR_FIRST_TIME: '/editor-data-new',
     PDF_STATUS: '/pdf-status',
     TRACKER_DATA: '/tracker-data',
     MANUAL_APPLICATION: '/manual-application',
+    EMBEDDINGS: "/embeddings",
     CSV: '/csv',
 }
 

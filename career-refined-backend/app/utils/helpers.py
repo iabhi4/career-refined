@@ -1,3 +1,4 @@
+import re
 from typing import Dict, List, Any
 from app.core.logging_config import get_logger
 
@@ -302,3 +303,115 @@ def transform_data_for_latex(original_data: Dict[str, Any]) -> Dict[str, Any]:
         })
 
     return transformed
+
+
+
+def calculate_matched_missing(
+    extracted_keywords: List[str],
+    resume_data: Dict[str, Any] # Expects {'skills': List[str], 'experiences': List[str], 'projects': List[str]}
+) -> Dict[str, List[str]]:
+    """
+    Compares extracted keywords against combined resume text content.
+
+    Args:
+        extracted_keywords: A list of technical keywords from the job description.
+        resume_data: A dictionary containing lists of skills, experience descriptions,
+                     and project descriptions.
+
+    Returns:
+        A dictionary with 'matched_keywords' and 'missing_keywords' lists.
+    """
+    logger.debug(f"Starting keyword matching. Keywords: {len(extracted_keywords)}")
+    matched_keywords = set()
+    missing_keywords = set(extracted_keywords) # Start assuming all are missing
+
+    # 1. Combine all resume text into one lower-case string for searching
+    full_resume_text = ""
+    if resume_data.get("skills"):
+        full_resume_text += " " + " ".join(resume_data["skills"])
+    if resume_data.get("experiences"):
+        full_resume_text += " " + " ".join(resume_data["experiences"])
+    if resume_data.get("projects"):
+        full_resume_text += " " + " ".join(resume_data["projects"])
+
+    full_resume_text_lower = full_resume_text.lower()
+    logger.debug(f"Combined resume text length for search: {len(full_resume_text_lower)}")
+
+
+    # 2. Perform case-insensitive search for each keyword
+    # Using regex word boundaries (\b) helps avoid partial matches (e.g., 'react' matching 'reactor')
+    for keyword in extracted_keywords:
+        # Normalize keyword for searching and comparison
+        keyword_lower = keyword.lower()
+        # Escape potential regex special characters in the keyword itself
+        keyword_escaped = re.escape(keyword_lower)
+        # Check if keyword exists as a whole word/phrase in the resume text
+        # This simple regex checks for the keyword surrounded by non-alphanumeric chars or start/end of string
+        # Consider more sophisticated matching (e.g., stemming) if needed.
+        pattern = r'(?<![a-zA-Z0-9])' + keyword_escaped + r'(?![a-zA-Z0-9])' # More robust word boundary
+        try:
+            if re.search(pattern, full_resume_text_lower):
+                matched_keywords.add(keyword) # Add original case keyword
+                if keyword in missing_keywords:
+                    missing_keywords.remove(keyword)
+        except re.error as e:
+             logger.error(f"Regex error searching for keyword '{keyword_escaped}': {e}")
+
+
+    result = {
+        "matched_keywords": sorted(list(matched_keywords)),
+        "missing_keywords": sorted(list(missing_keywords))
+    }
+    logger.debug(f"Keyword matching result: Matched={len(result['matched_keywords'])}, Missing={len(result['missing_keywords'])}")
+    return result
+
+
+def merge_editor_data(
+    tailored_resume: Dict[str, Any],
+    editor_data: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Merge tailored resume data with editor-provided data.
+    """
+    logger.info("Starting merge of tailored resume data with editor data.")
+    
+    tailored_experiences = tailored_resume.get("experience", [])
+    tailored_projects = tailored_resume.get("projects", [])
+    tailored_skills = tailored_resume.get("skills", {})
+    logger.info(f"Tailored resume data: {len(tailored_experiences)} experiences, {len(tailored_projects)} projects, skills: {list(tailored_skills.keys())}")
+
+    final_experiences = []
+    for tailored_exp, editor_exp in zip(tailored_experiences, editor_data.get("workExperience", [])):
+        merged_experience = {
+            "company": tailored_exp.get("company", editor_exp.get("company")),
+            "startDate": editor_exp.get("startDate", ""),
+            "endDate": editor_exp.get("endDate", ""),
+            "role": tailored_exp.get("role", editor_exp.get("role")),
+            "location": editor_exp.get("location", ""),
+            "responsibilities": tailored_exp.get("responsibilities", editor_exp.get("description")),
+        }
+        logger.info(f"Merged experience: {merged_experience}")
+        final_experiences.append(merged_experience)
+
+    final_projects = []
+    for tailored_proj, editor_proj in zip(tailored_projects, editor_data.get("projects", [])):
+        merged_project = {
+            "name": tailored_proj.get("name", editor_proj.get("name")),
+            "technologies": tailored_proj.get("technologies", editor_proj.get("technologies")),
+            "startDate": editor_proj.get("startDate", ""),
+            "endDate": editor_proj.get("endDate", ""),
+            "description": tailored_proj.get("description", editor_proj.get("description")),
+        }
+        logger.info(f"Merged project: {merged_project}")
+        final_projects.append(merged_project)
+
+    final_data = {
+        "personalDetails": editor_data["personalDetails"],
+        "education": editor_data["education"],
+        "experience": final_experiences,
+        "projects": final_projects,
+        "skills": tailored_skills,
+    }
+    logger.info("Merge completed successfully.")
+    logger.info(f"Final merged data: {final_data}")
+    return final_data

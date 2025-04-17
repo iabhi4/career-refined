@@ -1,0 +1,1 @@
+from app.services.latex.tasks import compile_latex

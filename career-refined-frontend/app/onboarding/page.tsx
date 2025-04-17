@@ -15,10 +15,10 @@ import { Label } from "@/components/ui/label";
 
 // icons
 import { AiOutlinePlus, AiOutlineDelete } from "react-icons/ai";
-import { OnboardingService } from "@/services/onboarding";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth";
 import { useEffect } from "react";
+import { ProfileService } from "@/services/profile";
 
 type OnboardingFormValues = z.infer<typeof userOnboardingSchema>;
 
@@ -92,7 +92,9 @@ export default function OnboardingPage() {
     console.log("User ID found");
     try {
       console.log("Submitting onboarding data");
-      await OnboardingService.submitOnboardingData(formData, userId);
+      await ProfileService.submitOnboardingData(formData, userId);
+      await ProfileService.rebuildUserEmbeddings(userId);
+      console.log("Embeddings created successfully");
 
       toast({
         title: "Success!",

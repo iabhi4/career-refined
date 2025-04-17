@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -22,9 +21,8 @@ interface AnalysisResponse {
   extracted_keywords: string[] | { technical_keywords: string[] };
   matched_keywords: string[];
   missing_keywords: string[];
-  relevant_experiences: string[];
-  relevant_projects: string[];
   suggestions: Record<string, any>;
+  task_id: number;
 }
 
 interface DashboardAnalysis extends AnalysisResponse {
@@ -45,11 +43,6 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [experiences, setExperiences] = useState<{id: number; company: string}[]>([]);
-  const [projects, setProjects] = useState<{id: number; project_name: string}[]>([]);
-  const [selectedExps, setSelectedExps] = useState<number[]>([]);
-  const [selectedProjs, setSelectedProjs] = useState<number[]>([]);
   const [addToTracker, setAddToTracker] = useState(false);
 
   function handleLogout() {
@@ -68,8 +61,7 @@ export default function DashboardPage() {
         throw new Error("User ID is not available");
       }
 
-      // Call your backend
-      const response: AnalysisResponse = await ApplicationService.createAndAnalyzeApplication({
+      const response: AnalysisResponse = await ApplicationService.createAndAnalyzeApplicationNew({
         user_id: userId,
         job_role: jobRole,
         company,
@@ -78,24 +70,20 @@ export default function DashboardPage() {
         add_to_tracker: addToTracker,
       });
 
-      // Build array of processed keywords
       const processed = getProcessedKeywords(
         response.extracted_keywords,
         response.matched_keywords,
         jobDescription
       );
 
-      // Create highlighted HTML
       const highlighted = highlightJobDescription(jobDescription, processed);
 
-      // Store everything in state
       setAnalysis({
         ...response,
         processedKeywords: processed,
         highlightedDescription: highlighted,
       });
 
-      // Clear input fields
       setCompany("");
       setLocation("");
       setJobRole("");
@@ -103,7 +91,6 @@ export default function DashboardPage() {
       setAddToTracker(false);
     } catch (error) {
       console.error("Error analyzing job description:", error);
-      // handle error (toast, etc.)
     } finally {
       setLoading(false);
     }
@@ -113,53 +100,12 @@ export default function DashboardPage() {
     setAnalysis(null);
   }
 
-  async function handleGoToEditor() {
-    if (!userId) {
-      throw new Error("User ID is not available");
-    }
-    try {
-      // 1. Fetch the user items from backend
-      const data = await ApplicationService.getProjectAndExperience(userId);
-      
-      // 2. Set them in state
-      setExperiences(data.experiences);
-      setProjects(data.projects);
-      
-      // 3. Reset any old selections
-      setSelectedExps([]);
-      setSelectedProjs([]);
-      
-      // 4. Open the dialog
-      setIsDialogOpen(true);
-    } catch (error) {
-      console.error("Failed to fetch user items:", error);
-    }
-  }
-
-  function toggleExpSelection(expId: number) {
-    setSelectedExps((prev) =>
-      prev.includes(expId) ? prev.filter((id) => id !== expId) : [...prev, expId]
-    );
-  }
-
-  function toggleProjSelection(projId: number) {
-    setSelectedProjs((prev) =>
-      prev.includes(projId) ? prev.filter((id) => id !== projId) : [...prev, projId]
-    );
-  }
-
-  function handleConfirmSelection() {
-    console.log("Selected experiences:", selectedExps);
-    console.log("Selected projects:", selectedProjs);
-    const selectedExpsString = JSON.stringify(selectedExps); // Convert to string
-    const selectedProjsString = JSON.stringify(selectedProjs);
-    const suggestionsString = JSON.stringify(analysis?.suggestions); // New
-    const missingKeywordsString = JSON.stringify(analysis?.missing_keywords); // New
-    const extractedKeywordsString = JSON.stringify(analysis?.extracted_keywords); // New
-    const matchedKeywordsString = JSON.stringify(analysis?.matched_keywords); // New
-    // For example, navigate to editor page with the selected IDs
-    router.push(`/editor?from=dashboard&exps=${encodeURIComponent(selectedExpsString)}&projs=${encodeURIComponent(selectedProjsString)}&suggestions=${encodeURIComponent(suggestionsString)}&missingKeywords=${encodeURIComponent(missingKeywordsString)}&extractedKeywords=${encodeURIComponent(extractedKeywordsString)}&matchedKeywords=${encodeURIComponent(matchedKeywordsString)}`);
-    setIsDialogOpen(false);
+  function navigateToEditor() {
+    const suggestionsString = JSON.stringify(analysis?.suggestions);
+    const missingKeywordsString = JSON.stringify(analysis?.missing_keywords);
+    const extractedKeywordsString = JSON.stringify(analysis?.extracted_keywords);
+    const matchedKeywordsString = JSON.stringify(analysis?.matched_keywords);
+    router.push(`/editor?from=dashboard&suggestions=${encodeURIComponent(suggestionsString)}&missingKeywords=${encodeURIComponent(missingKeywordsString)}&extractedKeywords=${encodeURIComponent(extractedKeywordsString)}&matchedKeywords=${encodeURIComponent(matchedKeywordsString)}`);
   }
 
   return (
@@ -257,7 +203,7 @@ export default function DashboardPage() {
 
             <Button
               variant="outline"
-              onClick={handleGoToEditor}
+              onClick={navigateToEditor}
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
               Go to Editor
@@ -325,57 +271,6 @@ export default function DashboardPage() {
             )}
           </div>
         )}
-        {/* ====== DIALOG ====== */}
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Select Work Experiences & Projects</DialogTitle>
-            </DialogHeader>
-            
-            <div className="mt-4 space-y-4">
-              {/* Experiences Section */}
-              <div>
-                <p className="font-medium mb-2">Work Experiences</p>
-                <div className="space-y-2">
-                  {experiences.map((exp) => (
-                    <div key={exp.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        checked={selectedExps.includes(exp.id)}
-                        onCheckedChange={() => toggleExpSelection(exp.id)}
-                      />
-                      <span>{exp.company}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Projects Section */}
-              <div>
-                <p className="font-medium mb-2">Projects</p>
-                <div className="space-y-2">
-                  {projects.map((proj) => (
-                    <div key={proj.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        checked={selectedProjs.includes(proj.id)}
-                        onCheckedChange={() => toggleProjSelection(proj.id)}
-                      />
-                      <span>{proj.project_name}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            
-            <DialogFooter className="mt-6">
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleConfirmSelection}>
-                Confirm
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </main>
     </div>
   );

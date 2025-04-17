@@ -13,7 +13,6 @@ import { Download, Share2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ApplicationService } from "@/services/application";
 import { useAuth } from "@/contexts/auth";
-import { mergeDeep } from "@/utils/application";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown } from "lucide-react"
 
@@ -30,10 +29,8 @@ export default function EditorPage() {
   const { toast } = useToast();
   const fromDashboard = searchParams.get("from") === "dashboard";
 
-  // Main editor and preview state
   const [editorContent, setEditorContent] = useState("");
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  // Analyzer bar data (if from dashboard)
   const [keywordMatches, setKeywordMatches] = useState<number[] | null>(null);
   const [missingKeywords, setMissingKeywords] = useState<number[] | null>(null);
   //const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -42,8 +39,6 @@ export default function EditorPage() {
   const [showNewOrLastDialog, setShowNewOrLastDialog] = useState(!fromDashboard);
   const [showSelectionDialog, setShowSelectionDialog] = useState(false);
   const [userItems, setUserItems] = useState<UserItems>({ experiences: [], projects: [] });
-  const [selectedExps, setSelectedExps] = useState<number[]>([]);
-  const [selectedProjs, setSelectedProjs] = useState<number[]>([]);
 
   const resumeEditorRef = useRef<any>(null);
   type SuggestionEntry = [keyword: string, revision: string];
@@ -58,13 +53,10 @@ export default function EditorPage() {
     }
 }, [fromDashboard, userId, searchParams]);
 
+
   async function handleRouteFromDashboard(searchParams: URLSearchParams) {
     if (!userId) return;
-        const expsParam = searchParams.get("exps");
-        const projsParam = searchParams.get("projs");
-        const keywordMatchesParam = searchParams.get("matchedKeywords");
 
-        // Set selected experiences and projects from query parameters
         const matchedKeywordsParam = searchParams.get("matchedKeywords");
         if (matchedKeywordsParam) {
           try {
@@ -77,7 +69,6 @@ export default function EditorPage() {
           }
         }
 
-        // missingKeywords
         const missingKeywordsParam = searchParams.get("missingKeywords");
         if (missingKeywordsParam) {
           try {
@@ -89,35 +80,18 @@ export default function EditorPage() {
           }
         }
 
-        // suggestions
         const suggestionsParam = searchParams.get("suggestions");
         if (suggestionsParam) {
           try {
             const parsed = JSON.parse(decodeURIComponent(suggestionsParam));
-            // parsed is an object like { "RESTful APIs": "Old snippet -> Proposed revision", ... }
-
-            // Convert object to [string, string][]
             setSuggestions(Object.entries(parsed) as [string, string][]);
           } catch (error) {
             console.error("Error parsing suggestions:", error);
             setSuggestions([]);
           }
         }
-
-        if (expsParam) {
-            setSelectedExps(JSON.parse(decodeURIComponent(expsParam)));
-        }
-        if (projsParam) {
-            setSelectedProjs(JSON.parse(decodeURIComponent(projsParam)));
-        }
     try {
-      const data = await ApplicationService.fetchEditorDataForFirstTime(
-        userId,
-        expsParam ? JSON.parse(decodeURIComponent(expsParam)) : [],
-        projsParam ? JSON.parse(decodeURIComponent(projsParam)) : []
-      );
-      setEditorContent(data.editorContent)
-      setPdfUrl(data.pdfUrl)
+      handleLastResume();
     } catch (error) {
       console.error("Error fetching editor data:", error);
       toast({ title: "Failed to fetch editor data", variant: "destructive" });
@@ -143,6 +117,22 @@ export default function EditorPage() {
     try {
       const data = await ApplicationService.fetchCachedResumeData(userId);
       setEditorContent(data.editorContent);
+      const taskId = data.taskId;
+        
+        toast({ title: "PDF generation in progress...", duration: 3000 });
+        
+        const intervalId = setInterval(async () => {
+          const statusResp = await ApplicationService.getPdfStatus(taskId);
+          if (statusResp.state === "SUCCESS") {
+            clearInterval(intervalId);
+            const pdfUrl = statusResp.pdf_path;
+            setPdfUrl(pdfUrl);
+            toast({ title: "PDF updated successfully", duration: 3000 });
+          } else if (statusResp.state === "FAILURE") {
+            clearInterval(intervalId);
+            alert("Failed to generate PDF: " + statusResp.error);
+          }
+        }, 3000);
       setPdfUrl(data.pdfUrl);
     } catch (error) {
       console.error("Error fetching cached resume:", error);
@@ -160,16 +150,6 @@ export default function EditorPage() {
     } catch (error) {
       console.error("Error fetching resume data with selections:", error);
       toast({ title: "Failed to update resume", variant: "destructive" });
-    }
-  }
-
-  async function checkPdfExists(url: string): Promise<boolean> {
-    try {
-      // A HEAD request is more efficient because it only fetches headers
-      const response = await fetch(url, { method: "HEAD" });
-      return response.ok;
-    } catch (error) {
-      return false;
     }
   }
 
@@ -196,19 +176,6 @@ export default function EditorPage() {
             alert("Failed to generate PDF: " + statusResp.error);
           }
         }, 3000);
-
-      //   const pdfUrl = "http://localhost:3000/pdfs/resume.pdf";
-      //   const pollInterval = 3000; // 3 seconds
-
-      //   // Start polling for the file
-      //   const intervalId = setInterval(async () => {
-      //     const exists = await checkPdfExists(pdfUrl);
-      //     if (exists) {
-      //       clearInterval(intervalId);
-      //       setPdfUrl(pdfUrl);
-      //       toast({ title: "PDF updated successfully", duration: 3000 });
-      //     }
-      // }, pollInterval);
       } catch (error) {
         console.error("Error updating PDF:", error);
         toast({ title: "Failed to update PDF", variant: "destructive" });
@@ -219,18 +186,6 @@ export default function EditorPage() {
 
   function handleDownloadPdf() {
     if (pdfUrl) window.open(pdfUrl, "_blank");
-  }
-
-  const handleEditorChange = (newData: any) => {
-    try {
-      // Parse the old data from state (which is a stringified JSON)
-      const oldData = JSON.parse(editorContent);
-      // Merge newData with oldData; missing keys in newData will remain from oldData.
-      const merged = mergeDeep(oldData, newData);
-      setEditorContent(JSON.stringify(merged));
-    } catch (err) {
-      console.error("Error merging updated JSON:", err);
-    }
   }
 
   return (
@@ -387,7 +342,6 @@ export default function EditorPage() {
 
       
       </main>
-
       {/* Dialog 1: New Resume or Last Resume */}
       <NewOrLastDialog
         open={showNewOrLastDialog}

@@ -1,4 +1,4 @@
-from http.client import HTTPException
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.core.logging_config import get_logger
 from app.models.application import ApplicationModel, ApplicationAnalysisCreate
@@ -191,7 +191,7 @@ def create_cached_resume(db: Session, user_id: int, resume_data: str):
 
 ################## Editor Data CRUD Operations #####################
     
-def get_editor_data_for_first_time(db: Session, user_id: int, exps: list[int], projects: list[int]):
+def get_editor_data_for_first_time(db: Session, user_id: int, exps: list[int] = None, projects: list[int] = None):
     """Get editor data for a user"""
     logger.info(f"Fetching editor data for user_id: {user_id}")
     try:
@@ -205,7 +205,12 @@ def get_editor_data_for_first_time(db: Session, user_id: int, exps: list[int], p
             "linkedin": user.linkedin_link,
             "github": user.github_link,
         }
-        workExperience = db.query(WorkExperience).filter(WorkExperience.id.in_(exps)).all()
+        
+        if not exps:
+            workExperience = db.query(WorkExperience).filter(WorkExperience.user_id == user_id).all()
+        else:
+            workExperience = db.query(WorkExperience).filter(WorkExperience.id.in_(exps)).all()
+        
         experience = []
         for exp in workExperience:
             experience.append({
@@ -216,9 +221,14 @@ def get_editor_data_for_first_time(db: Session, user_id: int, exps: list[int], p
                 "location": exp.location,
                 "responsibilities": exp.description,
             })
-        projects = db.query(Project).filter(Project.id.in_(projects)).all()
+        
+        if not projects:
+            projects_data = db.query(Project).filter(Project.user_id == user_id).all()
+        else:
+            projects_data = db.query(Project).filter(Project.id.in_(projects)).all()
+        
         project = []
-        for proj in projects:
+        for proj in projects_data:
             project.append({
                 "name": proj.project_name,
                 "technologies": proj.technologies_used,
@@ -226,6 +236,7 @@ def get_editor_data_for_first_time(db: Session, user_id: int, exps: list[int], p
                 "endDate": proj.end_month + " " + str(proj.end_year),
                 "description": proj.description,
             })
+        
         education = db.query(Education).filter(Education.user_id == user_id).all()
         education_data = []
         for edu in education:
@@ -236,6 +247,7 @@ def get_editor_data_for_first_time(db: Session, user_id: int, exps: list[int], p
                 "major": edu.major,   
                 "degree": edu.degree_type,
             })
+        
         editorData = {
             "personalDetails": personalDetails,
             "experience": experience,
@@ -264,3 +276,16 @@ def update_editor_data(db: Session, user_id: int, editor_data: str):
         logger.error(f"Error updating editor data for user_id {user_id}: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Error updating editor data")
+    
+
+def get_resume_data_for_embeddings(db: Session, user_id: int):
+    """Get resume data for a user"""
+    logger.info(f"Fetching resume data for user_id: {user_id}")
+    try:
+        cached_resume = db.query(CachedResume).filter(CachedResume.user_id == user_id).first()
+        if not cached_resume:
+            raise HTTPException(status_code=404, detail="Cached resume not found")
+        return cached_resume.editor_content
+    except Exception as e:
+        logger.error(f"Error fetching resume data for user_id {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error fetching resume data")

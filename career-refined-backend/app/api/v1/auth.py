@@ -15,19 +15,17 @@ from app.utils.auth import (
 from app.crud.user import (
     get_auth_by_email,
     create_user,
-    # handle_forgot_password,
-    # handle_reset_password,
 )
 from app.models.user import (
     UserCreate,
     Token,
 )
 
-auth = APIRouter()
+auth_router = APIRouter()
 logger = get_logger(__name__)
 
 
-@auth.post("/token", response_model=Token)
+@auth_router.post("/token", response_model=Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """Login endpoint to get access token."""
     logger.info(f"Login attempt for email: {form_data.username}")
@@ -50,7 +48,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
     
     return response
 
-@auth.post("/register", response_model=Token)
+@auth_router.post("/register", response_model=Token)
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
     """Register a new user."""
     logger.info(f"Registration attempt for email: {user.email}")
@@ -79,7 +77,7 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
         "user_id": auth_info.id,
         "is_onboarded": auth_info.is_onboarded
     })
-    set_auth_cookie(response, access_token)
+    set_auth_cookie(response, access_token, auth_info.is_onboarded)
     
     return response
 
@@ -93,13 +91,13 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
 #     """Reset password using token."""
 #     return handle_reset_password(db, token, new_password)
 
-@auth.post("/logout")
+@auth_router.post("/logout")
 async def logout():
     response = JSONResponse(content={"message": "Logged out successfully"})
     response.delete_cookie("access_token")
     return response
 
-@auth.get("/auth/me")
+@auth_router.get("/auth/me")
 async def get_authenticated_user(current_user: Auth = Depends(get_current_user)):
     """Get current user information."""
     return {

@@ -19,6 +19,3 @@ celery_app.conf.update(
     result_serializer="json",
     result_expires=3600,
 )
-
-# The rest of your imports or Celery tasks
-import app.services.latex
