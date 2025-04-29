@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     # Authentication
     SECRET_KEY: str = os.getenv("SECRET_KEY")
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
     # OpenAI Configuration
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     RAG_CHUNK_SIZE: int = 750
     RAG_CHUNK_OVERLAP: int = 100
     CHROMA_PERSIST_DIRECTORY: str = "./chroma_db_persistent"
-    GENERATION_MODEL_NAME: str = "gpt-4o"
+    GENERATION_MODEL_NAME: str = "gpt-4.1"
 
     class Config:
         case_sensitive = True

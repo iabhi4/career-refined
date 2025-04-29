@@ -7,6 +7,10 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser # To get string output from LLM first
 from pydantic import ValidationError
+from langchain_core.documents import Document
+import chromadb
+from chromadb.config import Settings as ChromaSettings
+from chromadb import PersistentClient
 
 # Application-specific imports
 # Adjust import paths based on your project structure
@@ -72,12 +76,35 @@ You are an expert resume analysis and tailoring assistant. Your goal is to perfo
 - Return these keywords as a flat list within the specified JSON structure under `extracted_keywords.technical_keywords`.
 
 **TASK 2: Generate Tailored Resume Content**
-- Based *only* on the `Retrieved Context` and the `Job Description`:
-    - **Select:** Choose the *most relevant* experiences and projects from the context that best match the Job Description (e.g., 2-4 experiences, 2-3 projects).
-    - **Tailor:** Rewrite the descriptions ('responsibilities' in experience, 'description' in projects) for the *selected items only*, aligning them with the Job Description using action verbs and details from the context. Use newline '\\n' for bullets.
-    - **Skills:** Identify skills from the context relevant to the job. Categorize them into: {"languages", "frameworks", "developerTools", "cloudTechnologies", "dbsApplications", "otherSkillsAndTools"}. Only include relevant skills found in context.
-    - **Extract:** Extract company name and role for selected experiences, project name and technologies (comma-separated string) for selected projects *if found in the context*. Output null if not found.
-- Structure this tailored content under the `tailored_resume` key in the final JSON output, adhering *strictly* to the sub-structure defined below.
+-Based strictly on the Retrieved Context and the Job Description:
+	-*Select*: Choose the most relevant experiences and projects from the context that best match the Job Description.
+		-Always prioritize experiences over projects when selecting.
+		-Select at least 2 experiences if available.
+		-Maximum total entries (experiences + projects) = 5:
+			-If 2 or more experiences are selected, select 3 or fewer projects.
+			-If only 1 experience is selected, select up to 4 projects.
+			-Never exceed 5 total items combined.
+	-*Tailor*: Rewrite the descriptions:
+		-For experiences: tailor the responsibilities field.
+		-For projects: tailor the description field.
+		-Tailoring must align descriptions strongly with the Job Description.
+		-Use powerful action verbs and measurable impacts when possible.
+		-Use newline \n for bullet points (each bullet point must be clearly separated by \n).
+	-Skills:
+		-Select only the skills from the context relevant to the job.
+		-Categorize them into: {"languages", "frameworks", "developerTools", "cloudTechnologies", "dbsApplications", "otherSkillsAndTools"}.
+		-Do not invent or hallucinate skills outside the context.
+	-Extract metadata:
+		-For each selected experience: extract company and role.
+		-For each selected project: extract name and technologies (comma-separated).
+		-If any metadata is missing in context, return null for that field rather than inventing.
+IMPORTANT Grounding Rules:
+-You are strictly forbidden from inventing new companies, roles, or project names.
+-You must only select from the "Experiences" and "Projects" listed in the context above.
+-Company and role names in experience must match exactly (case-sensitive) from the context.
+-Project names must match exactly from the context.
+-If an experience or project is missing in the context, do not create a substitute — skip it.
+Structure the tailored content under the tailored_resume key in the final JSON output, adhering strictly to the specified sub-structure.
 
 **TASK 3: Provide Improvement Feedback on Tailored Resume**
 - AFTER performing TASK 2 (generating the tailored resume content), critically review the `tailored_resume` output you generated.
@@ -121,80 +148,153 @@ COMBINED_RAG_PROMPT = ChatPromptTemplate.from_template(COMBINED_RAG_PROMPT_TEMPL
 
 # --- Core Generation Function (generate_tailored_editor_json -> needs renaming?) ---
 # Rename function to reflect combined output
-def generate_combined_rag_output(user_id: int, job_description: str) -> Optional[Dict[str, Any]]:
+def generate_combined_rag_output(
+    user_id: int,
+    job_description: str
+) -> Optional[Dict[str, Any]]:
     """
-    Generates combined RAG output: tailored resume, keywords, suggestions.
-    Returns a dictionary conforming to CombinedRagOutputSchema if successful.
+    1) Retrieves ALL experience chunks, top‑3 project chunks, and ALL skill entries.
+    2) Builds the combined context.
+    3) Invokes the RAG chain and returns validated JSON.
     """
-    logger.info(f"Starting COMBINED RAG generation task for user_id: {user_id}")
+    logger.info(f"Starting COMBINED RAG for user_id={user_id}")
 
-    # 1. Get Retriever (remains the same)
-    retriever = get_profile_retriever(user_id=user_id, k=15) # Keep k reasonably high for context
-    if not retriever:
-        logger.error(f"Combined generation failed: Could not get retriever for user_id {user_id}.")
-        return None
+    # 1) fetch experiences
+    exp_retriever = get_profile_retriever(
+        user_id=user_id, k=9999, metadata_filter={"source": "experience"}
+    )
+    exp_docs = exp_retriever.get_relevant_documents(job_description) if exp_retriever else []
 
-    # 2. Retrieve Context (remains the same)
+    # 2) fetch top 3 projects
+    proj_retriever = get_profile_retriever(
+        user_id=user_id, k=9999, metadata_filter={"source": "project"}
+    )
+    proj_docs = proj_retriever.get_relevant_documents(job_description) if proj_retriever else []
+
+    # 3) fetch skills
+    skill_retriever = get_profile_retriever(
+        user_id=user_id, k=9999, metadata_filter={"source": "skills"}
+    )
+    skill_docs = skill_retriever.get_relevant_documents(job_description) if skill_retriever else []
+
+    # merge
+    context_docs = exp_docs + proj_docs + skill_docs
+    logger.info(f"Context docs: {len(exp_docs)} exp, {len(proj_docs)} proj, {len(skill_docs)} skills")
+
+    # 4) build context string - UPDATED STRUCTURE
+    if context_docs:
+        experiences = []
+        projects = []
+        skills = {"languages": [], "frameworks": [], "developerTools": [], "cloudTechnologies": [], "dbsApplications": [], "otherSkillsAndTools": []}
+
+        for doc in context_docs:
+            source = doc.metadata.get("source")
+            field = doc.metadata.get("field")
+            content = doc.page_content.strip()
+
+            if source == "experience":
+                exp_index = doc.metadata.get("index")
+                if len(experiences) <= exp_index:
+                    experiences.extend([{}] * (exp_index - len(experiences) + 1))
+                exp = experiences[exp_index]
+                if field == "company":
+                    exp["company"] = content
+                elif field == "role":
+                    exp["role"] = content
+                elif field == "responsibilities_chunk":
+                    exp["responsibilities"] = exp.get("responsibilities", "") + f" {content}"
+            elif source == "project":
+                proj_index = doc.metadata.get("index")
+                if len(projects) <= proj_index:
+                    projects.extend([{}] * (proj_index - len(projects) + 1))
+                proj = projects[proj_index]
+                if field == "name":
+                    proj["name"] = content
+                elif field == "technologies":
+                    proj["technologies"] = content
+                elif field == "description_chunk":
+                    proj["description"] = proj.get("description", "") + f" {content}"
+            elif source == "skills":
+                category = doc.metadata.get("category")
+                if category in skills and isinstance(skills[category], list):
+                    skills[category].append(content)
+
+        context_parts = []
+
+        if experiences:
+            context_parts.append("## Experiences")
+            for exp in experiences:
+                if exp:
+                    context_parts.append(f"- Company: {exp.get('company', 'Unknown')}")
+                    context_parts.append(f"- Role: {exp.get('role', 'Unknown')}")
+                    responsibilities = exp.get("responsibilities", "").strip()
+                    if responsibilities:
+                        bullets = responsibilities.split("\n")
+                        bullet_list = "\n".join([f"    * {b.strip()}" for b in bullets if b.strip()])
+                        context_parts.append(f"- Responsibilities:\n{bullet_list}")
+                    context_parts.append("---")
+
+        if projects:
+            context_parts.append("## Projects")
+            for proj in projects:
+                if proj:
+                    context_parts.append(f"- Name: {proj.get('name', 'Unknown')}")
+                    context_parts.append(f"- Technologies: {proj.get('technologies', 'Unknown')}")
+                    description = proj.get("description", "").strip()
+                    if description:
+                        bullets = description.split("\n")
+                        bullet_list = "\n".join([f"    * {b.strip()}" for b in bullets if b.strip()])
+                        context_parts.append(f"- Description:\n{bullet_list}")
+                    context_parts.append("---")
+
+        if skills:
+            context_parts.append("## Skills")
+            for category, skill_list in skills.items():
+                if skill_list:
+                    context_parts.append(f"- {category}: {', '.join(skill_list)}")
+            context_parts.append("---")
+
+        context_string = "\n".join(context_parts)
+
+    else:
+        logger.warning("No context docs found; using fallback text.")
+        context_string = "No specific context documents retrieved from the user's profile."
+
+    # 5) invoke LLM chain
     try:
-        logger.debug(f"Invoking retriever for combined task for user_id {user_id}...")
-        query = job_description
-        relevant_docs = retriever.invoke(query)
-        context_string = "\n\n---\n\n".join([f"Source: {doc.metadata.get('source', 'unknown')} (ID: {doc.metadata.get('doc_id', 'N/A')})\nContent: {doc.page_content}" for doc in relevant_docs])
-        logger.info(f"Retrieved {len(relevant_docs)} documents for combined context for user_id {user_id}.")
-        if not relevant_docs:
-             logger.warning(f"Retriever returned no documents for user {user_id}. Proceeding without specific context.")
-             context_string = "No specific context documents retrieved from the user's profile for this job description."
-    except Exception as e:
-        logger.exception(f"Combined generation failed: Error retrieving context for user_id {user_id}: {e}", exc_info=True)
-        return None
-
-    # 3. Construct Chain and Invoke LLM (Using NEW Prompt)
-    try:
-        # Use the NEW combined prompt
-        rag_chain = COMBINED_RAG_PROMPT | llm | StrOutputParser()
-
-        logger.info(f"Invoking LLM chain for combined task for user_id: {user_id}...")
-        llm_response_str = rag_chain.invoke({
+        chain = COMBINED_RAG_PROMPT | llm | StrOutputParser()
+        raw = chain.invoke({
             "job_description": job_description,
             "context": context_string
         })
-        logger.debug(f"LLM Raw Response String received (length: {len(llm_response_str)}) for user_id: {user_id}")
-
-        if not llm_response_str:
-             logger.error(f"Combined generation failed: LLM returned an empty response for user_id {user_id}.")
-             return None
-
-        # Cleanup (remains the same)
-        cleaned_response_str = llm_response_str.strip()
-        if cleaned_response_str.startswith("```json"): cleaned_response_str = cleaned_response_str[7:]
-        if cleaned_response_str.startswith("```"): cleaned_response_str = cleaned_response_str[3:]
-        if cleaned_response_str.endswith("```"): cleaned_response_str = cleaned_response_str[:-3]
-        cleaned_response_str = cleaned_response_str.strip()
-
-
-        # 4. Parse and Validate JSON Output (Using NEW Schema)
-        logger.debug(f"Attempting to parse LLM response as JSON for combined output (user_id: {user_id})...")
-        try:
-            parsed_json = json.loads(cleaned_response_str)
-            logger.debug(f"Combined JSON parsing successful for user_id: {user_id}.")
-        except json.JSONDecodeError as e:
-            logger.error(f"Combined generation failed: Failed to parse LLM response as JSON for user_id {user_id}. Error: {e}")
-            logger.error(f"LLM Response (cleaned) that failed parsing:\n{cleaned_response_str}")
-            return None
-
-        logger.debug(f"Attempting to validate JSON against CombinedRagOutputSchema for user_id: {user_id}...")
-        try:
-            # ---> MODIFICATION: Validate using the NEW combined schema <---
-            validated_data = CombinedRagOutputSchema.model_validate(parsed_json)
-            validated_dict = validated_data.model_dump(mode='json')
-            logger.info(f"Combined JSON validation successful for user_id: {user_id}.")
-            return validated_dict # Success!
-
-        except ValidationError as e:
-            logger.error(f"Combined generation failed: LLM JSON output failed Pydantic validation for user_id {user_id}. Errors:\n{e}")
-            logger.error(f"Parsed JSON that failed validation:\n{json.dumps(parsed_json, indent=2)}")
-            return None
-
     except Exception as e:
-        logger.exception(f"Combined generation failed: Unexpected error during LLM chain invocation or processing for user_id {user_id}: {e}", exc_info=True)
+        logger.exception(f"LLM chain invocation failed: {e}")
+        return None
+
+    if not raw:
+        logger.error("LLM returned empty response")
+        return None
+
+    # 6) strip fences & parse JSON
+    cleaned = raw.strip()
+    for fence in ("```json", "```"):
+        if cleaned.startswith(fence):
+            cleaned = cleaned[len(fence):].strip()
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3].strip()
+
+    try:
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to JSON‑parse LLM response: {e}\n{cleaned}")
+        return None
+
+    # 7) Pydantic validate
+    try:
+        validated = CombinedRagOutputSchema.model_validate(parsed)
+        result = validated.model_dump(mode="json")
+        logger.info("Combined RAG output validated successfully")
+        return result
+    except ValidationError as e:
+        logger.error(f"Schema validation failed: {e}\n{json.dumps(parsed, indent=2)}")
         return None

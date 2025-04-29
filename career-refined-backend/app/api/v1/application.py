@@ -13,7 +13,7 @@ from app.services.latex.tasks import compile_latex
 from app.celery_app import celery_app
 from app.services.nlp import analyze_job_description, compare_and_generate_suggestions, clean_job_description
 from app.utils.auth import get_current_user
-from app.utils.helpers import extract_relevant_items, calculate_matched_missing, merge_editor_data
+from app.utils.helpers import extract_relevant_items, calculate_matched_missing, merge_editor_data, list_to_comma_separated_string
 from app.services.rag.generation import generate_combined_rag_output
 from app.crud import application
 from app.crud.user import (
@@ -127,8 +127,34 @@ def add_manual_application(user_id: int, application_data: ApplicationModel, db:
     
 
 ################# Resume Analysis Routes #################
+@application_router.put("/users/{user_id}/editor-data")
+def update_resume_pdf(user_id: int, editor_data: ResumeDataModel, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+     logger.info(f"Updating resume PDF for user_id: {user_id}")
+     try:
+         cached_resume = application.cached_resume_exists(db, user_id)
+         editor_content = editor_data.json()
+         if not cached_resume:
+             logger.info(f"No cached resume found for user_id: {user_id}. Creating new cached resume.")
+             application.create_cached_resume(db, user_id, editor_content)
+         else:
+             logger.info(f"Cached resume found for user_id: {user_id}. Updating editor data.")
+             application.update_editor_data(db, user_id, editor_content)
+         
+         # Generate LaTeX file from editor_data
+         latex_filepath = generate_resume_latex(editor_data)
+         
+         # Enqueue Celery task
+         task = compile_latex.delay(latex_filepath)
+         logger.info(f"Enqueued LaTeX compilation task for user_id: {user_id} with task id: {task.id}")
+         # Return task id so the client can poll the status later.
+         return {"task_id": task.id}
+     except Exception as e:
+         logger.error(f"Error updating resume PDF for user_id {user_id}: {str(e)}")
+         raise HTTPException(status_code=500, detail="Error updating resume PDF")
+     
 
-@application_router.post("/applications/create-and-analyze/")
+
+@application_router.post("/applications/new-analysis")
 async def create_and_analyze_application(
     application_data: ApplicationModel,
     db: Session = Depends(get_db),
@@ -159,33 +185,15 @@ async def create_and_analyze_application(
         # Step 1: Clean job description
         logger.info(f"Cleaning job description for application {application_response.id}")
         cleaned_description = clean_job_description(application_response.job_description)
-        
-        # Step 2: Extract keywords
-        logger.info(f"Extracting keywords from cleaned description")
-        keywords_response = analyze_job_description(cleaned_description)
-        try:
-            logger.info(f"Keywords response: {keywords_response}")
-            #keywords = json.loads(keywords_response)['technical_keywords']
-            keywords = json.loads(keywords_response)
-        except (json.JSONDecodeError, KeyError):
-            raise HTTPException(
-                status_code=500, 
-                detail="Error parsing keywords from analysis"
-            )
 
         # Step 3: Get resume data for comparison
         logger.info(f"Getting resume data for user {application_data.user_id}")
-        resume_data = {
-            "skills": get_user_skills(db, application_data.user_id),
-            "experiences": get_work_experience_descriptions(db, application_data.user_id),
-            "projects": get_project_descriptions(db, application_data.user_id)
-        }
+        editorData = application.get_editor_data_for_first_time(db, application_data.user_id)
 
         # Step 4: Compare and get suggestions
-        logger.info("Comparing keywords with resume data")
+        logger.info(f"Comparing keywords with resume data {editorData}")
         comparison_response = compare_and_generate_suggestions(
-            {"technical_keywords": keywords}, 
-            resume_data
+            application_data.job_description, editorData
         )
         
         try:
@@ -196,37 +204,58 @@ async def create_and_analyze_application(
                 status_code=500,
                 detail="Error parsing comparison results"
             )
+        
+        tailored_resume = comparison_data.get("tailored_resume")
+        extracted_keywords_data = comparison_data.get("extracted_keywords", [])
+        suggestions = comparison_data.get("improvement_feedback")
+        extracted_keywords = list_to_comma_separated_string(extracted_keywords_data)
 
-        # Extract relevant experience and project names from suggestions
-        relevant_items = extract_relevant_items(comparison_data.get('suggestions', {}), resume_data['experiences'], resume_data['projects'])
 
-        # Step 5: Create and store analysis
+        resume_data = {
+            "skills": get_user_skills(db, application_data.user_id),
+            "experiences": get_work_experience_descriptions(db, application_data.user_id),
+            "projects": get_project_descriptions(db, application_data.user_id)
+        }
+
+        logger.info("Calculating matched and missing keywords.")
+        keyword_match_result = calculate_matched_missing(
+            extracted_keywords=extracted_keywords_data,
+            resume_data=resume_data
+        )
+
+         # Step 5: Create and store analysis
+        logger.info(f"Creating analysis data for application {application_response.id}")
         analysis_data = ApplicationAnalysisCreate(
             user_id=application_data.user_id,
             application_id=application_response.id,
             job_description=cleaned_description,
-            extracted_keywords=json.dumps(keywords),
-            matched_keywords=json.dumps(comparison_data.get('matched_keywords', [])),
-            missing_keywords=json.dumps(comparison_data.get('missing_keywords', [])),
-            relevant_experiences=json.dumps(relevant_items['experiences']),
-            relevant_projects=json.dumps(relevant_items['projects']),
-            suggestions=json.dumps(comparison_data.get('suggestions', {}))
+            extracted_keywords=extracted_keywords,
+            matched_keywords=json.dumps(keyword_match_result.get('matched_keywords', [])),
+            missing_keywords=json.dumps(keyword_match_result.get('missing_keywords', [])),
+            relevant_experiences="",
+            relevant_projects="",
+            suggestions=json.dumps(suggestions)
         )
 
-        # Store in database
+        # Store in database 
         logger.info(f"Storing analysis for application {application_response.id}")
         stored_analysis = application.store_application_analysis(
             db, analysis_data
         )
 
-        # Step 6: Return relevant data to frontend
+        editor_content = json.dumps(tailored_resume)
+        if not application.cached_resume_exists(db, application_data.user_id):
+            logger.info("No cached resume. Creating one.")
+            application.create_cached_resume(db, application_data.user_id, editor_content)
+        else:
+            logger.info("Cached resume found. Updating it.")
+            application.update_editor_data(db, application_data.user_id, editor_content)
+
         return {
-            "extracted_keywords": keywords,
-            "matched_keywords": comparison_data.get('matched_keywords', []),
-            "missing_keywords": comparison_data.get('missing_keywords', []),
-            "relevant_experiences": relevant_items['experiences'],
-            "relevant_projects": relevant_items['projects'],
-            "suggestions": comparison_data.get('suggestions', {})
+            "extracted_keywords": extracted_keywords_data,
+            "matched_keywords": keyword_match_result.get('matched_keywords', []),
+            "missing_keywords": keyword_match_result.get('missing_keywords', []),
+            "suggestions": suggestions
         }
 
     except Exception as e:
@@ -237,7 +266,7 @@ async def create_and_analyze_application(
         )
     
 
-@application_router.post("/applications/new-analysis")
+@application_router.post("/applications/create-and-analyze")
 async def create_and_analyze_application(
     application_data: ApplicationModel,
     db: Session = Depends(get_db),

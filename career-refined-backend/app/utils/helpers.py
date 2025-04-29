@@ -374,36 +374,81 @@ def merge_editor_data(
     Merge tailored resume data with editor-provided data.
     """
     logger.info("Starting merge of tailored resume data with editor data.")
+    logger.info(f"Tailored resume data: {tailored_resume}")
+    logger.info(f"Editor data: {editor_data}")
     
-    tailored_experiences = tailored_resume.get("experience", [])
-    tailored_projects = tailored_resume.get("projects", [])
+    # tailored_experiences = tailored_resume.get("experience", [])
+    # tailored_projects = tailored_resume.get("projects", [])
+    # tailored_skills = tailored_resume.get("skills", {})
+    # logger.info(f"Tailored resume data: {len(tailored_experiences)} experiences, {len(tailored_projects)} projects, skills: {list(tailored_skills.keys())}")
+
+    # final_experiences = []
+    # for tailored_exp, editor_exp in zip(tailored_experiences, editor_data.get("workExperience", [])):
+    #     merged_experience = {
+    #         "company": tailored_exp.get("company", editor_exp.get("company")),
+    #         "startDate": editor_exp.get("startDate", ""),
+    #         "endDate": editor_exp.get("endDate", ""),
+    #         "role": tailored_exp.get("role", editor_exp.get("role")),
+    #         "location": editor_exp.get("location", ""),
+    #         "responsibilities": tailored_exp.get("responsibilities", editor_exp.get("description")),
+    #     }
+    #     logger.info(f"Merged experience: {merged_experience}")
+    #     final_experiences.append(merged_experience)
+
+    # final_projects = []
+    # for tailored_proj, editor_proj in zip(tailored_projects, editor_data.get("projects", [])):
+    #     merged_project = {
+    #         "name": tailored_proj.get("name", editor_proj.get("name")),
+    #         "technologies": tailored_proj.get("technologies", editor_proj.get("technologies")),
+    #         "startDate": editor_proj.get("startDate", ""),
+    #         "endDate": editor_proj.get("endDate", ""),
+    #         "description": tailored_proj.get("description", editor_proj.get("description")),
+    #     }
+    #     logger.info(f"Merged project: {merged_project}")
+    #     final_projects.append(merged_project)
+
+
+    tailored_exps = tailored_resume.get("experience", [])
+    tailored_projs = tailored_resume.get("projects", [])
     tailored_skills = tailored_resume.get("skills", {})
-    logger.info(f"Tailored resume data: {len(tailored_experiences)} experiences, {len(tailored_projects)} projects, skills: {list(tailored_skills.keys())}")
+
+    # Build a lookup by company+role for experiences
+    exp_lookup = {
+        (t["company"].strip().lower(), t["role"].strip().lower()): t.get("responsibilities", "")
+        for t in tailored_exps
+    }
+    # And by project name for projects
+    proj_lookup = {
+        p["name"]: p.get("description", "")
+        for p in tailored_projs
+    }
 
     final_experiences = []
-    for tailored_exp, editor_exp in zip(tailored_experiences, editor_data.get("workExperience", [])):
-        merged_experience = {
-            "company": tailored_exp.get("company", editor_exp.get("company")),
-            "startDate": editor_exp.get("startDate", ""),
-            "endDate": editor_exp.get("endDate", ""),
-            "role": tailored_exp.get("role", editor_exp.get("role")),
-            "location": editor_exp.get("location", ""),
-            "responsibilities": tailored_exp.get("responsibilities", editor_exp.get("description")),
-        }
-        logger.info(f"Merged experience: {merged_experience}")
-        final_experiences.append(merged_experience)
+    for e in editor_data.get("experience", []):
+        key = (e.get("company", "").strip().lower(), e.get("role", "").strip().lower())
+        resp = exp_lookup.get(key, e.get("responsibilities", ""))
+        final_experiences.append({
+            "company":         e.get("company"),
+            "role":            e.get("role"),
+            "startDate":       e.get("startDate", ""),
+            "endDate":         e.get("endDate", ""),
+            "location":        e.get("location", ""),
+            "responsibilities": resp,
+        })
+
 
     final_projects = []
-    for tailored_proj, editor_proj in zip(tailored_projects, editor_data.get("projects", [])):
-        merged_project = {
-            "name": tailored_proj.get("name", editor_proj.get("name")),
-            "technologies": tailored_proj.get("technologies", editor_proj.get("technologies")),
-            "startDate": editor_proj.get("startDate", ""),
-            "endDate": editor_proj.get("endDate", ""),
-            "description": tailored_proj.get("description", editor_proj.get("description")),
-        }
-        logger.info(f"Merged project: {merged_project}")
-        final_projects.append(merged_project)
+    for p in editor_data.get("projects", []):
+        name = p.get("name")
+        desc = proj_lookup.get(name, p.get("description", ""))
+        final_projects.append({
+            "name":         name,
+            "technologies": p.get("technologies"),
+            "startDate":    p.get("startDate", ""),
+            "endDate":      p.get("endDate", ""),
+            "description":  desc,
+        })
+
 
     final_data = {
         "personalDetails": editor_data["personalDetails"],
@@ -415,3 +460,17 @@ def merge_editor_data(
     logger.info("Merge completed successfully.")
     logger.info(f"Final merged data: {final_data}")
     return final_data
+
+
+
+def list_to_comma_separated_string(items: List[str]) -> str:
+    """
+        Convert a list of strings into a single comma-separated string.
+
+        Args:
+            items: List of strings to be joined.
+
+        Returns:
+            A single string with items separated by commas.
+    """
+    return ", ".join(item.strip() for item in items if item.strip())

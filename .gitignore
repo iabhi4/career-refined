@@ -30,3 +30,5 @@ career-refined-frontend/node_modules
 # Log files
 *.log
 logs/
+
+resume.tex

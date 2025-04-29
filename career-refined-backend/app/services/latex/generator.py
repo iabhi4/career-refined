@@ -22,6 +22,11 @@ def escape_latex_characters(text):
         text = text.replace(char, escape)
     return text
 
+def convert_list_to_string(lst):
+    if not isinstance(lst, list):
+        return lst
+    return ", ".join(item.strip() for item in lst if item.strip())
+
 
 def generate_resume_latex(resume_data):
     if not isinstance(resume_data, dict):
@@ -29,6 +34,7 @@ def generate_resume_latex(resume_data):
     logger.info("Generating LaTeX template for resume.")
     env = Environment()
     env.globals['escape_latex_characters'] = escape_latex_characters
+    env.globals['convert_list_to_string'] = convert_list_to_string
     latex_template = r"""%-------------------------
 % Resume in Latex
 % Author : Jake Gutierrez
@@ -173,12 +179,12 @@ def generate_resume_latex(resume_data):
 \section{Technical Skills}
   \begin{itemize}[leftmargin=0.15in, label={}]
       \small{\item{
-      \textbf{Languages}{: {{ skills.languages }} } \\
-      \textbf{Frameworks}{: {{ skills.frameworks }} } \\
-      \textbf{Developer Tools}{: {{ skills.developerTools }} } \\
-      \textbf{Cloud Technologies}{: {{ skills.cloudTechnologies }} } \\
-      \textbf{DBS Applications}{: {{ skills.dbsApplications }} } \\
-      \textbf{Other Skills \& Tools}{: {{ skills.otherSkillsAndTools }} }
+      \textbf{Languages}{: {{ convert_list_to_string(skills.languages) }} } \\
+      \textbf{Frameworks}{: {{ convert_list_to_string(skills.frameworks) }} } \\
+      \textbf{Developer Tools}{: {{ convert_list_to_string(skills.developerTools) }} } \\
+      \textbf{Cloud Technologies}{: {{ convert_list_to_string(skills.cloudTechnologies) }} } \\
+      \textbf{DBS Applications}{: {{ convert_list_to_string(skills.dbsApplications) }} } \\
+      \textbf{Other Skills \& Tools}{: {{ convert_list_to_string(skills.otherSkillsAndTools) }} }
       }}
   \end{itemize}
 

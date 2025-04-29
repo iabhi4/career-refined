@@ -3,7 +3,7 @@
 import os
 import logging
 import shutil # For potentially clearing old index directories if needed
-from typing import List, Optional, Dict # Ensure Dict is imported
+from typing import Any, List, Optional, Dict # Ensure Dict is imported
 
 # Third-party imports
 import chromadb # ChromaDB client library
@@ -237,46 +237,39 @@ def update_user_vector_index(user_id: int, db: Session, print_added_docs: bool =
         logger.exception(f"Error updating vector index for user_id {user_id}: {e}", exc_info=True)
         # raise # Optionally re-raise
 
-def get_profile_retriever(user_id: int, k: int = 15) -> Optional[VectorStoreRetriever]:
+def get_profile_retriever(
+    user_id: int,
+    k: int = 100,
+    metadata_filter: Optional[Dict[str, Any]] = None
+) -> Optional[VectorStoreRetriever]:
     """
     Loads the persisted vector store for a user from ChromaDB
-    and returns a LangChain Retriever object.
-
-    Args:
-        user_id: The ID of the user.
-        k: The number of relevant documents to retrieve.
-
-    Returns:
-        A VectorStoreRetriever instance, or None if the index doesn't exist
-        or an error occurs.
+    and returns a LangChain Retriever object, optionally
+    pre-filtered by metadata (e.g. {"source":"experience"}).
     """
     collection_name = f"{COLLECTION_NAME_PREFIX}{user_id}"
-    logger.info(f"Attempting to load retriever for user_id: {user_id}, collection: {collection_name}")
+    logger.info(f"Loading retriever for user_id={user_id}, k={k}, filter={metadata_filter}")
 
+    # ensure the collection exists
     try:
-        # Check if collection exists first to provide a clearer error/warning
-        try:
-            # This confirms the collection exists in the persistent storage
-            chroma_client.get_collection(name=collection_name)
-            logger.debug(f"Collection '{collection_name}' found.")
-        except Exception as e:
-             # Catching a general exception might be too broad, but Chroma's specific exception for non-existence isn't obvious
-             # Let's assume any error here means we can't get the collection reliably
-             logger.warning(f"Vector index collection '{collection_name}' not found or inaccessible for user_id {user_id}. Cannot create retriever. Run 'update_user_vector_index' first. Detail: {e}")
-             return None
-
-        # If collection exists, create the LangChain wrapper
-        vector_store = Chroma(
-            client=chroma_client,
-            collection_name=collection_name,
-            embedding_function=embeddings_model, # Use the initialized LangChain OpenAIEmbeddings
-            persist_directory=CHROMA_PERSIST_PATH # Specifying path helps ensure connection
-        )
-
-        retriever = vector_store.as_retriever(search_kwargs={'k': k})
-        logger.info(f"Successfully loaded retriever for user_id: {user_id} (k={k}).")
-        return retriever
-
+        chroma_client.get_collection(name=collection_name)
     except Exception as e:
-        logger.exception(f"Error loading retriever for user_id {user_id}: {e}", exc_info=True)
+        logger.warning(f"Collection '{collection_name}' missing: {e}")
         return None
+
+    # wrap it in LangChain’s Chroma vector store
+    vector_store = Chroma(
+        client=chroma_client,
+        collection_name=collection_name,
+        embedding_function=embeddings_model,
+        persist_directory=CHROMA_PERSIST_PATH
+    )
+
+    # build the search_kwargs
+    search_kwargs: Dict[str, Any] = {"k": k}
+    if metadata_filter:
+        search_kwargs["filter"] = metadata_filter
+
+    retriever = vector_store.as_retriever(search_kwargs=search_kwargs)
+    logger.info(f"Retriever ready for user={user_id} (k={k}, filter={metadata_filter})")
+    return retriever

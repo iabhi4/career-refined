@@ -44,6 +44,7 @@ export default function EditorPage() {
   type SuggestionEntry = [keyword: string, revision: string];
 
   const [suggestions, setSuggestions] = useState<SuggestionEntry[]>([]);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     // Check if coming from the dashboard and userId is available
@@ -53,6 +54,11 @@ export default function EditorPage() {
     }
 }, [fromDashboard, userId, searchParams]);
 
+  useEffect(() => {
+    if (iframeRef.current && pdfUrl) {
+      iframeRef.current.src = makePdfSrc(pdfUrl);
+    }
+  }, [pdfUrl]);
 
   async function handleRouteFromDashboard(searchParams: URLSearchParams) {
     if (!userId) return;
@@ -188,6 +194,9 @@ export default function EditorPage() {
     if (pdfUrl) window.open(pdfUrl, "_blank");
   }
 
+  const makePdfSrc = (url: string) =>
+    `${url}?v=${Date.now()}#toolbar=0&view=fitH`;
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Navbar onLogout={() => router.push("/auth/login")} />
@@ -318,22 +327,21 @@ export default function EditorPage() {
             <CardTitle className="text-lg">Preview</CardTitle>
           </CardHeader>
           <CardContent className="flex-1 overflow-auto flex justify-center items-center">
-            {pdfUrl ? (
-              <div className="w-full h-full overflow-hidden flex justify-center items-center">
-                <iframe
-                  src={`${pdfUrl}#toolbar=0&view=fitH`}
-                  className="w-full h-full max-w-full"
-                  style={{
-                    border: "none",
-                    objectFit: "cover",
-                    height: "100%",
-                    minHeight: "100%",
-                  }}
-                />
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No PDF preview available</p>
-            )}
+          {pdfUrl ? (
+            <iframe
+              ref={iframeRef}
+              src={makePdfSrc(pdfUrl)}
+              className="w-full h-full max-w-full"
+              style={{
+                border: "none",
+                objectFit: "cover",
+                height: "100%",
+                minHeight: "100%",
+              }}
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">No PDF preview available</p>
+          )}
           </CardContent>
         </Card>
       </div>
